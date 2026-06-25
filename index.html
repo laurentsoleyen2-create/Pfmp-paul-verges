@@ -1,0 +1,811 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0f1e">
+<title>PFMP Paul Vergès</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;height:100dvh;overflow:hidden;
+  font-family:system-ui,-apple-system,sans-serif;background:#0f172a}
+
+/* ═══════════════════════════
+   LAYOUT FLEX VERTICAL
+═══════════════════════════ */
+#app{
+  display:flex;flex-direction:column;
+  width:100%;height:100%;height:100dvh;
+  overflow:hidden;
+}
+
+/* ── Top bar ── */
+#topbar{
+  flex-shrink:0;z-index:10;
+  background:linear-gradient(135deg,#0d2137 0%,#1a3a5c 100%);
+  padding:10px 12px 8px;
+  display:flex;align-items:center;gap:8px;
+  box-shadow:0 2px 12px rgba(0,0,0,.3);
+}
+.logo{width:34px;height:34px;flex-shrink:0;background:#f07c32;border-radius:9px;
+  display:flex;align-items:center;justify-content:center;font-size:18px}
+.tt{flex:1;min-width:0}
+.tt h1{color:#fff;font-size:14px;font-weight:800;line-height:1.1}
+.tt p{color:rgba(255,255,255,.55);font-size:11px;margin-top:1px}
+.tbts{display:flex;gap:6px;flex-shrink:0}
+.tbtn{height:30px;padding:0 10px;border-radius:15px;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);
+  color:#fff;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;
+  display:flex;align-items:center;gap:4px}
+.tbtn.acc{background:rgba(240,124,50,.5);border-color:rgba(240,124,50,.4)}
+
+/* ── Chips secteur ── */
+#cbar{
+  flex-shrink:0;z-index:9;
+  display:flex;gap:6px;padding:8px 10px;
+  overflow-x:auto;scrollbar-width:none;
+  background:#0d2137;
+  border-bottom:1px solid rgba(255,255,255,.08);
+}
+#cbar::-webkit-scrollbar{display:none}
+.chip{
+  flex-shrink:0;height:28px;padding:0 12px;border-radius:14px;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.15);
+  color:rgba(255,255,255,.8);font-size:11px;font-weight:600;
+  cursor:pointer;white-space:nowrap;
+}
+.chip.on{background:#f07c32;border-color:#f07c32;color:#fff}
+.chip.fav.on{background:#f59e0b;border-color:#f59e0b}
+
+/* ── Zone carte ── */
+#map-wrap{
+  flex-shrink:0;
+  position:relative;
+  /* hauteur dynamique calculée en JS */
+}
+#map{
+  width:100%;height:100%;
+  background:#c8d8e8;
+}
+.leaflet-tile{max-width:none !important}
+
+/* FABs sur la carte */
+#fabs{
+  position:absolute;right:10px;bottom:10px;z-index:5;
+  display:flex;flex-direction:column;gap:7px;
+}
+.fab{
+  width:36px;height:36px;border-radius:10px;
+  background:#fff;color:#0d2137;border:none;
+  box-shadow:0 2px 10px rgba(0,0,0,.25);
+  display:flex;align-items:center;justify-content:center;
+  font-size:16px;font-weight:800;cursor:pointer;
+}
+.fab.primary{background:#0d2137;color:#fff;font-size:14px}
+
+/* ── Sheet ── */
+#sheet{
+  flex:1;min-height:0;
+  display:flex;flex-direction:column;
+  background:#f3f4f6;
+  overflow:hidden;
+}
+
+/* tabs */
+#sh-tabs{
+  flex-shrink:0;display:flex;
+  background:#fff;border-bottom:1.5px solid #e5e7eb;padding:0 4px;
+}
+.stab{
+  flex:1;padding:8px 2px 6px;
+  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;
+  color:#9ca3af;cursor:pointer;
+  border-bottom:3px solid transparent;margin-bottom:-1.5px;
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+}
+.stab .si{font-size:16px}
+.stab.on{color:#0d2137;border-bottom-color:#f07c32}
+
+/* search */
+#sh-srch-wrap{flex-shrink:0;padding:8px 12px 4px;background:#fff}
+#sh-srch{
+  width:100%;height:36px;padding:0 14px;
+  border-radius:10px;border:1.5px solid #e5e7eb;
+  font-size:14px;font-family:inherit;color:#111827;
+  background:#f9fafb;outline:none;
+}
+#sh-srch:focus{border-color:#2c5f8a}
+#sh-hint{flex-shrink:0;padding:2px 14px 5px;font-size:11px;color:#9ca3af;background:#fff}
+
+/* panels */
+#sh-body{flex:1;min-height:0;position:relative;overflow:hidden}
+.sp{
+  position:absolute;inset:0;
+  overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+  padding:8px 12px 24px;
+  display:none;flex-direction:column;gap:8px;
+}
+.sp.on{display:flex}
+
+/* ═══════════════════════════
+   CARTES ENTREPRISES
+═══════════════════════════ */
+.ec{
+  flex-shrink:0;background:#fff;border-radius:14px;
+  overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.09);
+  border-left:5px solid #e5e7eb;
+}
+.ec[data-s=contact] {border-left-color:#3b82f6}
+.ec[data-s=contacte]{border-left-color:#eab308}
+.ec[data-s=rdv]     {border-left-color:#a855f7}
+.ec[data-s=accepte] {border-left-color:#22c55e}
+.ec[data-s=refuse]  {border-left-color:#ef4444}
+.ec-top{padding:11px 12px 0;display:flex;align-items:flex-start;gap:10px;cursor:pointer}
+.ec-ico{width:38px;height:38px;border-radius:10px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:20px}
+.ec-inf{flex:1;min-width:0}
+.ec-nom{font-size:13px;font-weight:800;color:#0d2137;line-height:1.25;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ec-meta{font-size:11px;color:#6b7280;margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ec-fav{font-size:20px;flex-shrink:0;padding:0 2px;cursor:pointer}
+.ec-tags{padding:6px 12px 0;display:flex;gap:5px;flex-wrap:wrap}
+.bdg{padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.2px;white-space:nowrap}
+.bn {background:#f3f4f6;color:#374151}
+.bc1{background:#dbeafe;color:#1e3a8a}.bc2{background:#fef9c3;color:#713f12}
+.bc3{background:#f3e8ff;color:#4c1d95}.bc4{background:#dcfce7;color:#14532d}
+.bc5{background:#fee2e2;color:#7f1d1d}
+.ec-acts{display:flex;gap:5px;padding:8px 12px 10px}
+.ea{
+  flex:1;padding:7px 2px;border-radius:9px;border:none;
+  font-size:11px;font-weight:700;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:1px;
+  text-decoration:none;color:#374151;background:#f3f4f6;
+}
+.ea span{font-size:14px}
+.ea.call{background:#dcfce7;color:#166534}
+.ea.nav {background:#fff7ed;color:#9a3412}
+.ea.fiche{background:#dbeafe;color:#1e3a8a}
+.ec-prog{padding:0 12px 10px;display:flex;gap:3px;align-items:center}
+.pp{flex:1;height:4px;border-radius:2px;background:#e5e7eb}
+.pp.p1{background:#3b82f6}.pp.p2{background:#eab308}
+.pp.p3{background:#a855f7}.pp.p4g{background:#22c55e}.pp.p4r{background:#ef4444}
+.pp-lbl{font-size:10px;font-weight:600;color:#9ca3af;margin-left:5px;white-space:nowrap}
+.sec-lbl{flex-shrink:0;font-size:10px;font-weight:800;text-transform:uppercase;
+  letter-spacing:.5px;color:#9ca3af;padding:4px 2px 2px}
+.mt-empty{display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:10px;padding:36px 20px;flex-shrink:0}
+.mt-empty .ei{font-size:40px}
+.mt-empty p{text-align:center;font-size:13px;color:#6b7280;line-height:1.5;max-width:230px}
+
+/* démarches */
+.di{flex-shrink:0;background:#fff;border-radius:14px;
+  box-shadow:0 1px 4px rgba(0,0,0,.09);overflow:hidden}
+.di-hd{padding:10px 12px;display:flex;align-items:center;gap:9px;cursor:pointer}
+.di-ico{width:32px;height:32px;border-radius:8px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:16px}
+.di-inf{flex:1;min-width:0}
+.di-nom{font-size:13px;font-weight:800;color:#0d2137;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.di-sub{font-size:11px;color:#6b7280;margin-top:2px;display:flex;align-items:center;gap:4px}
+.di-arr{font-size:18px;color:#9ca3af;transition:transform .2s;flex-shrink:0}
+.di-arr.op{transform:rotate(90deg)}
+.di-body{display:none;padding:0 12px 12px}
+.di-body.op{display:block}
+.ss-row{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:9px}
+.so{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;
+  cursor:pointer;border:2px solid transparent;opacity:.5}
+.so.on{opacity:1;border-color:#0d2137}
+.s0{background:#f3f4f6;color:#374151}.s1{background:#dbeafe;color:#1e3a8a}
+.s2{background:#fef9c3;color:#713f12}.s3{background:#f3e8ff;color:#4c1d95}
+.s4{background:#dcfce7;color:#14532d}.s5{background:#fee2e2;color:#7f1d1d}
+.ntxt{width:100%;padding:9px;border-radius:9px;
+  border:1.5px solid #e5e7eb;font-size:13px;font-family:inherit;
+  color:#0d2137;resize:none;height:68px;outline:none}
+.ntxt:focus{border-color:#2c5f8a}
+.sv-btn{width:100%;margin-top:8px;padding:10px;border-radius:10px;border:none;
+  background:#0d2137;color:#fff;font-size:13px;font-weight:800;cursor:pointer}
+
+/* conseils */
+.tip{flex-shrink:0;background:#fff;border-radius:14px;
+  box-shadow:0 1px 4px rgba(0,0,0,.09);padding:14px 12px}
+.tip h3{font-size:13px;font-weight:800;color:#0d2137;margin-bottom:6px}
+.tip p{font-size:12px;color:#374151;line-height:1.65}
+.tscript{margin-top:8px;padding:10px;border-radius:9px;
+  background:#f9fafb;border:1px solid #e5e7eb;
+  font-size:12px;color:#374151;line-height:1.7;font-style:italic}
+.tscript em{color:#0d2137;font-style:normal;font-weight:700}
+
+/* ═══════════════════════════
+   MODAL FICHE
+═══════════════════════════ */
+#fiche-ov{position:fixed;inset:0;background:rgba(0,0,0,.52);
+  z-index:50;display:none;align-items:flex-end}
+#fiche-ov.on{display:flex}
+#fiche{background:#fff;border-radius:22px 22px 0 0;
+  width:100%;max-height:92dvh;overflow-y:auto;padding-bottom:24px;
+  animation:sUp .28s cubic-bezier(.32,1,.23,1)}
+@keyframes sUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.fh{width:36px;height:4px;background:#e5e7eb;border-radius:2px;margin:12px auto 0}
+.fiche-head{padding:14px 16px 12px;display:flex;align-items:center;gap:12px;
+  border-bottom:1px solid #f3f4f6}
+.fiche-ico{width:48px;height:48px;border-radius:13px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:26px}
+.fiche-nom{font-size:16px;font-weight:900;color:#0d2137;line-height:1.2}
+.fiche-sub{font-size:11px;color:#6b7280;margin-top:3px}
+.fiche-x{margin-left:auto;flex-shrink:0;width:30px;height:30px;border-radius:50%;
+  background:#f3f4f6;border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;font-size:14px;color:#374151}
+.fiche-body{padding:16px;display:flex;flex-direction:column;gap:14px}
+.fs-title{font-size:10px;font-weight:800;text-transform:uppercase;
+  letter-spacing:.5px;color:#9ca3af;margin-bottom:8px}
+.f-row{display:flex;flex-direction:column;gap:7px}
+.f-btn{display:flex;align-items:center;gap:13px;padding:13px 14px;
+  border-radius:13px;border:1.5px solid #f3f4f6;background:#fff;
+  cursor:pointer;text-decoration:none;color:#0d2137}
+.f-btn-ico{width:36px;height:36px;border-radius:9px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:20px}
+.f-btn.call .f-btn-ico{background:#dcfce7}
+.f-btn.nav  .f-btn-ico{background:#fff7ed}
+.f-lbl{font-size:14px;font-weight:700}
+.f-sub2{font-size:11px;color:#6b7280;margin-top:1px}
+.f-fav{width:100%;padding:13px;border-radius:13px;
+  border:1.5px solid #f07c32;background:#fff7ed;
+  color:#9a3412;font-size:14px;font-weight:800;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:8px}
+.f-fav.on{background:#f07c32;color:#fff;border-color:#f07c32}
+.f-script{padding:12px;border-radius:11px;background:#f9fafb;
+  border:1px solid #e5e7eb;font-size:13px;color:#374151;line-height:1.65}
+.f-script strong{color:#0d2137;font-weight:800}
+.f-save{width:100%;padding:14px;border-radius:13px;border:none;
+  background:#0d2137;color:#fff;font-size:15px;font-weight:800;cursor:pointer;margin-top:4px}
+
+/* overlays */
+.ov2{position:fixed;inset:0;background:rgba(0,0,0,.5);
+  z-index:60;display:none;align-items:flex-end}
+.ov2.on{display:flex}
+.ov2-sh{background:#fff;border-radius:22px 22px 0 0;
+  width:100%;max-height:80dvh;overflow-y:auto;padding-bottom:24px;
+  animation:sUp .28s cubic-bezier(.32,1,.23,1)}
+.ov2-head{padding:14px 18px;display:flex;align-items:center;
+  justify-content:space-between;border-bottom:1px solid #f3f4f6;
+  position:sticky;top:0;background:#fff;z-index:1}
+.ov2-head h2{font-size:16px;font-weight:900;color:#0d2137}
+.ov2-x{width:28px;height:28px;border-radius:50%;background:#f3f4f6;
+  border:none;cursor:pointer;display:flex;align-items:center;
+  justify-content:center;font-size:13px;color:#374151}
+.ov2-body{padding:10px 18px 4px}
+.si-item{margin-bottom:10px}
+.si-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:3px}
+.si-nm{font-size:12px;font-weight:600;color:#374151}
+.si-ct{font-size:11px;font-weight:800;background:#0d2137;color:#fff;
+  border-radius:20px;padding:1px 9px}
+.si-bg{height:5px;background:#f3f4f6;border-radius:3px;overflow:hidden}
+.si-fill{height:100%;border-radius:3px}
+.com-all{display:flex;align-items:center;justify-content:space-between;
+  padding:12px 18px;border-bottom:1px solid #f3f4f6;cursor:pointer}
+.com-nm{font-size:14px;font-weight:700;color:#0d2137}
+.com-ct{font-size:12px;color:#6b7280;margin-top:1px}
+.com-arr{font-size:20px;color:#f07c32}
+.com-row{display:flex;align-items:center;justify-content:space-between;
+  padding:11px 18px;border-bottom:1px solid #f3f4f6;cursor:pointer}
+.com-row.on .com-nm{color:#f07c32;font-weight:800}
+
+/* popup leaflet */
+.leaflet-popup-content-wrapper{
+  border-radius:14px!important;box-shadow:0 8px 28px rgba(0,0,0,.2)!important;
+  border:none!important;padding:0!important}
+.leaflet-popup-content{margin:0!important;width:auto!important}
+.leaflet-popup-tip-container{display:none}
+.pop{padding:13px;min-width:200px;max-width:260px}
+.pop-sect{font-size:10px;font-weight:800;text-transform:uppercase;
+  letter-spacing:.5px;color:#9ca3af;margin-bottom:2px}
+.pop-nom{font-size:14px;font-weight:900;color:#0d2137;line-height:1.2;margin-bottom:4px}
+.pop-com{font-size:11px;color:#6b7280;margin-bottom:9px}
+.pop-acts{display:flex;gap:6px}
+.pbtn{flex:1;padding:8px 4px;border-radius:9px;border:none;
+  font-size:12px;font-weight:800;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:4px;text-decoration:none}
+.pbtn.p{background:#0d2137;color:#fff}
+.pbtn.s{background:#f3f4f6;color:#374151}
+.pbtn.f{background:#fff7ed;color:#9a3412}
+.leaflet-control-zoom{display:none}
+
+/* toast */
+#toast{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:16px;
+  background:#0d2137;color:#fff;padding:9px 20px;border-radius:24px;
+  font-size:12px;font-weight:700;z-index:200;opacity:0;pointer-events:none;
+  transition:opacity .25s;white-space:nowrap;box-shadow:0 4px 18px rgba(0,0,0,.3)}
+#toast.on{opacity:1}
+
+/* point utilisateur */
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(1.5)}}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="topbar">
+    <div class="logo">🎓</div>
+    <div class="tt">
+      <h1>PFMP Paul Vergès</h1>
+      <p id="sub-line">399 entreprises · La Réunion</p>
+    </div>
+    <div class="tbts">
+      <button class="tbtn" id="btn-stats">📊</button>
+      <button class="tbtn acc" id="btn-com">📍 Communes</button>
+    </div>
+  </div>
+
+  <div id="cbar"></div>
+
+  <div id="map-wrap">
+    <div id="map"></div>
+    <div id="fabs">
+      <button class="fab primary" id="btn-locate">📍</button>
+      <button class="fab" id="btn-zi">＋</button>
+      <button class="fab" id="btn-zo">－</button>
+    </div>
+  </div>
+
+  <div id="sheet">
+    <div id="sh-tabs">
+      <div class="stab on" data-t="liste"><span class="si">📋</span>Liste</div>
+      <div class="stab" data-t="favoris"><span class="si">⭐</span>Favoris</div>
+      <div class="stab" data-t="demarches"><span class="si">📊</span>Démarches</div>
+      <div class="stab" data-t="conseils"><span class="si">💡</span>Conseils</div>
+    </div>
+    <div id="sh-srch-wrap">
+      <input id="sh-srch" type="search" placeholder="🔍  Rechercher une entreprise…">
+    </div>
+    <div id="sh-hint">Touche une fiche pour la localiser sur la carte · ⭐ = tes favoris</div>
+    <div id="sh-body">
+      <div class="sp on" id="sp-liste"></div>
+      <div class="sp"    id="sp-favoris"></div>
+      <div class="sp"    id="sp-demarches"></div>
+      <div class="sp"    id="sp-conseils">
+        <div class="tip">
+          <h3>📞 Script téléphonique</h3>
+          <p>Touche 📞 sur une fiche pour appeler. Dis&nbsp;:</p>
+          <div class="tscript">« Bonjour, je m'appelle <em>[prénom]</em>, je suis élève en bac pro <em>[filière]</em> au lycée Paul Vergès. Je cherche une entreprise pour ma PFMP. Est-ce que vous accueillez des stagiaires ? »</div>
+        </div>
+        <div class="tip">
+          <h3>🏃 Se présenter en personne</h3>
+          <p>Habille-toi correctement, apporte ton CV, va directement à l'accueil. C'est la méthode la plus efficace. Laisse ton CV même si on te dit « on verra ».</p>
+        </div>
+        <div class="tip">
+          <h3>⭐ Utiliser l'appli</h3>
+          <p><strong>1.</strong> Filtre par secteur (barre en haut).<br>
+          <strong>2.</strong> Ajoute 5–10 entreprises en favoris ⭐.<br>
+          <strong>3.</strong> Appelle ou passe les voir.<br>
+          <strong>4.</strong> Note le résultat dans Démarches.<br>
+          <strong>5.</strong> Dès qu'une dit oui → préviens ton prof !</p>
+        </div>
+        <div class="tip">
+          <h3>📍 Se repérer</h3>
+          <p>Touche 📍 pour te localiser. Touche une fiche dans la liste pour centrer la carte. Le bouton 🧭 ouvre Google Maps avec l'itinéraire.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FICHE -->
+<div id="fiche-ov">
+  <div id="fiche">
+    <div class="fh"></div>
+    <div class="fiche-head">
+      <div class="fiche-ico" id="f-ico">🏢</div>
+      <div style="flex:1;min-width:0">
+        <div class="fiche-nom" id="f-nom">—</div>
+        <div class="fiche-sub" id="f-sub">—</div>
+      </div>
+      <button class="fiche-x" id="f-x">✕</button>
+    </div>
+    <div class="fiche-body">
+      <div>
+        <div class="fs-title">Contact</div>
+        <div class="f-row">
+          <a class="f-btn call" id="f-call" href="#">
+            <div class="f-btn-ico">📞</div>
+            <div><div class="f-lbl">Appeler</div><div class="f-sub2" id="f-tel">—</div></div>
+          </a>
+          <a class="f-btn nav" id="f-nav" href="#" target="_blank">
+            <div class="f-btn-ico">🧭</div>
+            <div><div class="f-lbl">Itinéraire</div><div class="f-sub2" id="f-adr">—</div></div>
+          </a>
+        </div>
+      </div>
+      <div>
+        <div class="fs-title">Script d'appel</div>
+        <div class="f-script" id="f-script"></div>
+      </div>
+      <button class="f-fav" id="f-fav">🤍 Ajouter aux favoris</button>
+      <div>
+        <div class="fs-title">Ma démarche</div>
+        <div class="ss-row" id="f-ss"></div>
+        <div class="fs-title" style="margin-top:10px">Mes notes</div>
+        <textarea class="ntxt" id="f-notes" placeholder="Date d'appel, réponse obtenue, nom du contact…"></textarea>
+        <button class="f-save" id="f-save">✅ Enregistrer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STATS -->
+<div class="ov2" id="stats-ov">
+  <div class="ov2-sh">
+    <div class="fh" style="padding-top:4px"></div>
+    <div class="ov2-head"><h2>📊 Par secteur</h2><button class="ov2-x" id="stats-x">✕</button></div>
+    <div class="ov2-body" id="stats-body"></div>
+  </div>
+</div>
+
+<!-- COMMUNES -->
+<div class="ov2" id="com-ov">
+  <div class="ov2-sh">
+    <div class="fh" style="padding-top:4px"></div>
+    <div class="ov2-head"><h2>📍 Filtrer par commune</h2><button class="ov2-x" id="com-x">✕</button></div>
+    <div id="com-body"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- Leaflet chargé en dernier -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function(){
+
+const DATA    = [{"id": 1, "nom": "Cabinet d'Infirmier Sarah Gazelle", "secteur": "Médical / Santé", "commune": "Bois de Nèfles", "adresse": "178 chemin Combavas, Bois de Nèfles, La Réunion", "tel": "06 93 90 74 03", "responsable": "", "lat": -20.914748, "lng": 55.41005}, {"id": 2, "nom": "Cabinet Médical Bois de Nèfles ST Paul", "secteur": "Non renseigné", "commune": "Bois de Nèfles", "adresse": "178 chemin Combavas, Bois de Nèfles, La Réunion", "tel": "02 62 59 79 54", "responsable": "", "lat": -20.91985, "lng": 55.412825}, {"id": 3, "nom": "CISE St Paul", "secteur": "Eau", "commune": "Bois de Nèfles", "adresse": "Chemin Mon repos, Bois de Nèfles, La Réunion", "tel": "02 62 44 39 40", "responsable": "", "lat": -20.913389, "lng": 55.419174}, {"id": 4, "nom": "ENT AMOLVIN", "secteur": "Travaux publics", "commune": "Bois de Nèfles", "adresse": "33 BIS CH. MELCHIOR, Bois de Nèfles, La Réunion", "tel": "02 62 44 36 15", "responsable": "Yoland", "lat": -20.911209, "lng": 55.410917}, {"id": 5, "nom": "LES INFIRMIERS AUX PETITS SOINS", "secteur": "Médical / Santé", "commune": "Bois de Nèfles", "adresse": "25 RUE DE L'EGLISE, Bois de Nèfles, La Réunion", "tel": "02 62 10 22 41", "responsable": "Jeanne-Lise", "lat": -20.917793, "lng": 55.410117}, {"id": 6, "nom": "SELARL Lucas et Lim Houn Tchen", "secteur": "Médical / Santé", "commune": "Bois de Nèfles", "adresse": "17 rue de l'église, Bois de Nèfles, La Réunion", "tel": "06 92 18 72 50", "responsable": "Karine", "lat": -20.920639, "lng": 55.416775}, {"id": 7, "nom": "Cabinet d'infirmiers DALLEAU", "secteur": "Médical / Santé", "commune": "Bois de Nèfles", "adresse": "79 chemin Neuf, Bois de Nèfles, La Réunion", "tel": "02 62 44 39 62", "responsable": "Joël", "lat": -20.923328, "lng": 55.412484}, {"id": 8, "nom": "Cabinet Infirmier Ismaël/Rakotomena", "secteur": "Non renseigné", "commune": "Bois de Nèfles", "adresse": "22 chemin Combavas, Bois de Nèfles, La Réunion", "tel": "02 62 43 69 75", "responsable": "", "lat": -20.914602, "lng": 55.417329}, {"id": 9, "nom": "Cabinet infirmiers TAILAME-DUPONT", "secteur": "Non renseigné", "commune": "Bois de Nèfles", "adresse": "22 rue de l'Eglise, Bois de Nèfles, La Réunion", "tel": "02 62 44 02 00", "responsable": "", "lat": -20.920614, "lng": 55.41795}, {"id": 10, "nom": "Laboratoire des Jacarandas", "secteur": "Analyse / Labo", "commune": "Bois de Nèfles", "adresse": "28 rue Rolland Garros, Bois de Nèfles, La Réunion", "tel": "02 62 35 52 86", "responsable": "", "lat": -20.912368, "lng": 55.409791}, {"id": 11, "nom": "Cabinet d'infirmiers CORSAUX TOMADESSO", "secteur": "Médical / Santé", "commune": "Chaloupe St Leu", "adresse": "313 rue Alexandre Bégue, Chaloupe St Leu, La Réunion", "tel": "02 62 28 59 37", "responsable": "Jean-Michel", "lat": -21.195719, "lng": 55.319474}, {"id": 12, "nom": "SDV Dijoux-Vitry Chez Marcel", "secteur": "Boucherie / Charcuterie", "commune": "Chaloupe St Leu", "adresse": "292 rue Alexandre Bègue, Chaloupe St Leu, La Réunion", "tel": "02 62 54 72 92", "responsable": "", "lat": -21.202236, "lng": 55.311877}, {"id": 13, "nom": "Boulangerie Yong", "secteur": "Non renseigné", "commune": "Étang-Salé les Hauts", "adresse": "Rue de la boulangerie, Étang-Salé les Hauts, La Réunion", "tel": "02 62 26 59 69", "responsable": "", "lat": -21.260299, "lng": 55.364412}, {"id": 14, "nom": "Cabinet Infirmiers LEBON Pascal", "secteur": "Non renseigné", "commune": "Étang St Leu", "adresse": "158 CD 13, Étang St Leu, La Réunion", "tel": "06 92 76 63 30", "responsable": "", "lat": -21.222402, "lng": 55.311054}, {"id": 15, "nom": "AVICOM", "secteur": "Agroalimentaire", "commune": "Étang-Salé", "adresse": "ZA Les Sables, Étang-Salé, La Réunion", "tel": "02 62 26 59 09", "responsable": "", "lat": -21.260135, "lng": 55.361452}, {"id": 16, "nom": "Boulangerie Patisserie Oguia", "secteur": "Boulangerie / Pâtisserie", "commune": "Étang-Salé", "adresse": "128 avenue Raymond BARRE, Étang-Salé, La Réunion", "tel": "02 62 24 31 51", "responsable": "", "lat": -21.2607, "lng": 55.363216}, {"id": 17, "nom": "CCAS DE L'ETANG SALE", "secteur": "Non renseigné", "commune": "Étang-Salé", "adresse": "1 allée des Basses Dunes, Étang-Salé, La Réunion", "tel": "02 62 91 45 66", "responsable": "", "lat": -21.264493, "lng": 55.366624}, {"id": 18, "nom": "Mairie de l'Etang-Salé", "secteur": "Collectivité", "commune": "Étang-Salé", "adresse": "73 Avenue Raymond Barre, Étang-Salé, La Réunion", "tel": "", "responsable": "", "lat": -21.266701, "lng": 55.360729}, {"id": 19, "nom": "Piscine de l'Etang Salé", "secteur": "Maintenance / Énergie", "commune": "Étang-Salé", "adresse": "1 avenue Raymond Barre, Étang-Salé, La Réunion", "tel": "02 62 26 43 16", "responsable": "", "lat": -21.260388, "lng": 55.361659}, {"id": 20, "nom": "PREFABETON", "secteur": "Non renseigné", "commune": "Étang-Salé", "adresse": "29 avenue Michel Debré, Étang-Salé, La Réunion", "tel": "02 62 26 59 89", "responsable": "", "lat": -21.259936, "lng": 55.361083}, {"id": 21, "nom": "Cabinet d'Infirmiers Beaumarchais Marie Monique", "secteur": "Non renseigné", "commune": "La Plaine St Paul", "adresse": "47 chemin Combavas, La Plaine St Paul, La Réunion", "tel": "02 62 44 18 36", "responsable": "", "lat": -20.977136, "lng": 55.393642}, {"id": 22, "nom": "L'île aux pains", "secteur": "Boulangerie / Pâtisserie", "commune": "La Plaine St Paul", "adresse": "2 rue Etienne Régnault, La Plaine St Paul, La Réunion", "tel": "02 62 24 78 28", "responsable": "Sébastien", "lat": -20.983809, "lng": 55.397051}, {"id": 23, "nom": "SARL BPECA", "secteur": "Non renseigné", "commune": "La Plaine St Paul", "adresse": "32 chemin Combavas, La Plaine St Paul, La Réunion", "tel": "02 62 57 43 85", "responsable": "", "lat": -20.985883, "lng": 55.396259}, {"id": 24, "nom": "ANTEA France", "secteur": "Non renseigné", "commune": "La Possession", "adresse": "66 bis rue Eugène Delouise, La Possession, La Réunion", "tel": "02 62 20 95 88", "responsable": "Stéphanie", "lat": -20.928886, "lng": 55.333592}, {"id": 25, "nom": "Anzemberg SARL", "secteur": "Non renseigné", "commune": "La Possession", "adresse": "40 rue Mahatma Gandhi, La Possession, La Réunion", "tel": "02 62 42 43 44", "responsable": "", "lat": -20.9214, "lng": 55.334808}, {"id": 26, "nom": "April Mon Assurance", "secteur": "Non renseigné", "commune": "La Possession", "adresse": "1 rue Capitaine Dreyfus, La Possession, La Réunion", "tel": "02 62 39 10 07", "responsable": "Stéphanie", "lat": -20.925117, "lng": 55.332633}, {"id": 27, "nom": "ARAR Soins à domicile", "secteur": "Non renseigné", "commune": "La Possession", "adresse": "4 rue de Hanoï, La Possession, La Réunion", "tel": "02 62 71 97 50", "responsable": "GRAZIELLA", "lat": -20.926562, "lng": 55.342813}, {"id": 28, "nom": "BioRéunion", "secteur": "Non renseigné", "commune": "La Possession", "adresse": "71 bis rue Leconte de Lisle, La Possession, La Réunion", "tel": "02 62 22 02 89", "responsable": "", "lat": -20.921228, "lng": 55.338228}, {"id": 29, "nom": "Boulangerie Douceur des îles SARL Lodie", "secteur": "Boulangerie / Pâtisserie", "commune": "La Possession", "adresse": "N°9 bis, La Possession, La Réunion", "tel": "02 62 55 70 27", "responsable": "Claude", "lat": -20.927904, "lng": 55.339908}, {"id": 30, "nom": "Boulangerie-Pâtisserie Baguepi Guillotin Damien", "secteur": "Non renseigné", "commune": "La Possession", "adresse": "37 rue Sarda Garriga, La Possession, La Réunion", "tel": "02 62 22 21 84", "responsable": "", "lat": -20.928012, "lng": 55.335012}, {"id": 31, "nom": "Boulangerie-Pâtisserie La Bigoudenne", "secteur": "Boulangerie / Pâtisserie", "commune": "La Possession", "adresse": "49 bis rue Gervais Barret, La Possession, La Réunion", "tel": "06 92 23 24 94", "responsable": "Fabienne", "lat": -20.916447, "lng": 55.33866}, {"id": 32, "nom": "Boulangerie-Pâtisserie Le Kapor", "secteur": "Boulangerie / Pâtisserie", "commune": "La Possession", "adresse": "44 bis rue Mahatma Gandhi, La Possession, La Réunion", "tel": "02 62 33 08 66", "responsable": "", "lat": -20.922503, "lng": 55.339285}, {"id": 33, "nom": "Boulangerie-Pâtisserie Le St Albius", "secteur": "Boulangerie / Pâtisserie", "commune": "La Possession", "adresse": "70 rue Côte Ouest, La Possession, La Réunion", "tel": "02 62 33 68 20", "responsable": "J-L", "lat": -20.9185, "lng": 55.340564}, {"id": 34, "nom": "Cabinet d'infirmier Bosquain", "secteur": "Non renseigné", "commune": "La Possession", "adresse": "30 rue Karl Max, La Possession, La Réunion", "tel": "02 62 44 81 42", "responsable": "", "lat": -20.927093, "lng": 55.330149}, {"id": 35, "nom": "Cabinet d'Infirmiers BOSQUAIN", "secteur": "Non renseigné", "commune": "La Possession", "adresse": "30 rue Karl Max, La Possession, La Réunion", "tel": "02 62 44 81 42", "responsable": "", "lat": -20.925884, "lng": 55.333448}, {"id": 36, "nom": "Cabinet d'Infirmiers LÉAUTÉ Gwénaëlle", "secteur": "Non renseigné", "commune": "La Possession", "adresse": "59 rue Gerveais Barret, La Possession, La Réunion", "tel": "06 92 07 14 58", "responsable": "", "lat": -20.927346, "lng": 55.342901}, {"id": 37, "nom": "Cabinet Infirmier RICHARD Marie Josiane", "secteur": "Non renseigné", "commune": "La Possession", "adresse": "Résidence Fleur de sel, La Possession, La Réunion", "tel": "02 62 22 35 10", "responsable": "", "lat": -20.918031, "lng": 55.334105}, {"id": 38, "nom": "Cabinet Infirmiers GRONDIN", "secteur": "Non renseigné", "commune": "La Possession", "adresse": "81 rue Romain Rolland, La Possession, La Réunion", "tel": "", "responsable": "", "lat": -20.921124, "lng": 55.335239}, {"id": 39, "nom": "Cantine scolaire Evariste de Parny", "secteur": "Non renseigné", "commune": "La Possession", "adresse": "30 rue Evariste de Parny, La Possession, La Réunion", "tel": "02 62 22 20 33", "responsable": "", "lat": -20.917496, "lng": 55.336124}, {"id": 40, "nom": "Charcuterie Maison Le Tyrant", "secteur": "Boucherie / Charcuterie", "commune": "La Possession", "adresse": "6 rue Leconte de Lisle, La Possession, La Réunion", "tel": "02 62 49 02 74", "responsable": "", "lat": -20.926592, "lng": 55.333153}, {"id": 41, "nom": "CHEZ DAISY ET FABRICE DAISY", "secteur": "Boulangerie / Pâtisserie", "commune": "La Possession", "adresse": "27 RUE NELSON MANDELA, La Possession, La Réunion", "tel": "06 92 00 98 94", "responsable": "FABRICE", "lat": -20.922441, "lng": 55.333378}, {"id": 42, "nom": "Edena", "secteur": "Eau", "commune": "La Possession", "adresse": "10 rue Eugéne Delouise, La Possession, La Réunion", "tel": "02 62 42 15 30", "responsable": "", "lat": -20.922116, "lng": 55.34227}, {"id": 43, "nom": "Fondation Père Favron EHPAD Les Lataniers", "secteur": "Non renseigné", "commune": "La Possession", "adresse": "102 rue Raymond MONDON, La Possession, La Réunion", "tel": "02 62 22 23 23", "responsable": "Mona", "lat": -20.924708, "lng": 55.33277}, {"id": 44, "nom": "KWAN-CHEE GEORGES DAVID", "secteur": "Médical / Santé", "commune": "La Possession", "adresse": "28B RUE EMMANUEL TEXER, La Possession, La Réunion", "tel": "06 92 73 74 84", "responsable": "Georges-David", "lat": -20.916334, "lng": 55.336833}, {"id": 45, "nom": "LABM DE LA POSSESSION", "secteur": "Non renseigné", "commune": "La Possession", "adresse": "77 RUE LECONTE DE LISLE, La Possession, La Réunion", "tel": "", "responsable": "", "lat": -20.929027, "lng": 55.33036}, {"id": 46, "nom": "Lycée de La Possession", "secteur": "Non renseigné", "commune": "La Possession", "adresse": "60 rue Mahatma Gandhi, La Possession, La Réunion", "tel": "", "responsable": "", "lat": -20.928765, "lng": 55.338484}, {"id": 47, "nom": "Maintenance Industrielle Heavy (MIH)", "secteur": "Maintenance / Énergie", "commune": "La Possession", "adresse": "14 Rue Gustave Eiffel, La Possession, La Réunion", "tel": "", "responsable": "", "lat": -20.919211, "lng": 55.33561}, {"id": 48, "nom": "Mairie de la possession", "secteur": "Collectivité", "commune": "La Possession", "adresse": "BP92 RUE WALDECK ROCHET, La Possession, La Réunion", "tel": "", "responsable": "DANY", "lat": -20.929411, "lng": 55.335043}, {"id": 49, "nom": "Piscine municipale de La Possession", "secteur": "Maintenance / Énergie", "commune": "La Possession", "adresse": "7 avenue R. Vergès, La Possession, La Réunion", "tel": "02 62 22 00 02", "responsable": "", "lat": -20.916354, "lng": 55.337108}, {"id": 50, "nom": "Qwalilab", "secteur": "Non renseigné", "commune": "La Possession", "adresse": "9 rue Patrice Lumumba, La Possession, La Réunion", "tel": "02 62 71 23 23", "responsable": "yohan", "lat": -20.916705, "lng": 55.341751}, {"id": 51, "nom": "Societe EDENA", "secteur": "Eau", "commune": "La Possession", "adresse": "10 rue Eugene Delouise, La Possession, La Réunion", "tel": "06 92 60 85 17", "responsable": "", "lat": -20.930139, "lng": 55.33979}, {"id": 52, "nom": "SOTRACO", "secteur": "Non renseigné", "commune": "La Possession", "adresse": "51 route de Cambaie, La Possession, La Réunion", "tel": "06 92 68 55 62", "responsable": "Guillaume", "lat": -20.920756, "lng": 55.337218}, {"id": 53, "nom": "TRANSCOM", "secteur": "Non renseigné", "commune": "La Possession", "adresse": "12 rue Eugene de Louise, La Possession, La Réunion", "tel": "0 69 27 09 14 56", "responsable": "Franck", "lat": -20.926564, "lng": 55.338673}, {"id": 54, "nom": "Water technology", "secteur": "Eau", "commune": "La Possession", "adresse": "81 rue Romain Rolland, La Possession, La Réunion", "tel": "", "responsable": "", "lat": -20.928738, "lng": 55.335787}, {"id": 55, "nom": "SAVEURS DES O", "secteur": "Non renseigné", "commune": "La Saline", "adresse": "1 chemin Longuet, La Saline, La Réunion", "tel": "02 62 25 58 71", "responsable": "DIDIER", "lat": -21.080648, "lng": 55.296353}, {"id": 56, "nom": "BOULANGERIE LE MAIDO", "secteur": "Non renseigné", "commune": "Le Guillaume", "adresse": "133 rue Louise et Jouan, Le Guillaume, La Réunion", "tel": "06 92 74 23 69", "responsable": "", "lat": -21.061438, "lng": 55.396687}, {"id": 57, "nom": "CHARCUTERIE MAILLOT", "secteur": "Boucherie / Charcuterie", "commune": "Le Guillaume", "adresse": "112 BIS RUE LOUISE ET JOUAN, Le Guillaume, La Réunion", "tel": "06 93 92 38 77", "responsable": "", "lat": -21.066692, "lng": 55.395501}, {"id": 58, "nom": "ENT SAINT ALME", "secteur": "Plomberie", "commune": "Le Guillaume", "adresse": "118 TER ROUTE LOUISE ET JOUAN, Le Guillaume, La Réunion", "tel": "06 92 47 82 84", "responsable": "ALAIN", "lat": -21.060923, "lng": 55.405187}, {"id": 59, "nom": "ANPAA 974 CSAPA Le Port", "secteur": "Non renseigné", "commune": "Le Port", "adresse": "6 rue de Bruxelles, Le Port, La Réunion", "tel": "02 62 45 99 60", "responsable": "", "lat": -20.936122, "lng": 55.301945}, {"id": 60, "nom": "Armement des Mascareignes", "secteur": "Agroalimentaire", "commune": "Le Port", "adresse": "2 rue de Djibouti, Le Port, La Réunion", "tel": "02 62 42 00 73", "responsable": "", "lat": -20.931774, "lng": 55.29514}, {"id": 61, "nom": "Association ANKRAGE", "secteur": "Non renseigné", "commune": "Le Port", "adresse": "139 Résidence Heliotropes, Le Port, La Réunion", "tel": "02 62 57 92 26", "responsable": "", "lat": -20.929625, "lng": 55.300551}, {"id": 62, "nom": "Association LIAISON Handicap Autrement", "secteur": "Non renseigné", "commune": "Le Port", "adresse": "40 rue Jean Jaurés, Le Port, La Réunion", "tel": "02 62 43 16 15", "responsable": "", "lat": -20.929399, "lng": 55.300425}, {"id": 63, "nom": "Bioréunion Le Port", "secteur": "Non renseigné", "commune": "Le Port", "adresse": "Rue Alsace Lorraine, Le Port, La Réunion", "tel": "02 62 42 15 48", "responsable": "", "lat": -20.940292, "lng": 55.297538}, {"id": 64, "nom": "Boulangerie L'Ambassadeur", "secteur": "Non renseigné", "commune": "Le Port", "adresse": "45 rue François de Mahy, Le Port, La Réunion", "tel": "02 62 39 78 82", "responsable": "", "lat": -20.940027, "lng": 55.306007}, {"id": 65, "nom": "Boulangerie La Presqu'île", "secteur": "Boulangerie / Pâtisserie", "commune": "Le Port", "adresse": "39 avenue Raymond Vergès, Le Port, La Réunion", "tel": "06 92 98 97 43", "responsable": "", "lat": -20.927998, "lng": 55.304643}, {"id": 66, "nom": "Boulangerie Le Pétrin Gourmand", "secteur": "Non renseigné", "commune": "Le Port", "adresse": "13 rue Léon Lepervanche, Le Port, La Réunion", "tel": "02 62 39 18 48", "responsable": "FABRICE", "lat": -20.935995, "lng": 55.293811}, {"id": 67, "nom": "BOULANGERIE DE L'ILE", "secteur": "Boulangerie / Pâtisserie", "commune": "Le Port", "adresse": "75 rue Général de Gaulle, Le Port, La Réunion", "tel": "02 62 24 40 04", "responsable": "HERVE", "lat": -20.928008, "lng": 55.306257}, {"id": 68, "nom": "BOURBON DEBOUCHAGE", "secteur": "Eau", "commune": "Le Port", "adresse": "16 RUE CLAUDE CHAPPE, Le Port, La Réunion", "tel": "06 92 23 35 23", "responsable": "DAVID", "lat": -20.939101, "lng": 55.299804}, {"id": 69, "nom": "C.R.F Ylang Ylang", "secteur": "Médical / Santé", "commune": "Le Port", "adresse": "rue Alsace Lorraine, Le Port, La Réunion", "tel": "02 62 54 93 81", "responsable": "", "lat": -20.939331, "lng": 55.303648}, {"id": 70, "nom": "Cabinet d'Infirmiers Terral / Fournier", "secteur": "Non renseigné", "commune": "Le Port", "adresse": "1 rue Roland Garros, Le Port, La Réunion", "tel": "", "responsable": "", "lat": -20.929578, "lng": 55.294797}, {"id": 71, "nom": "Cabinet GROSSET/BOYER", "secteur": "Médical / Santé", "commune": "Le Port", "adresse": "10 BIS RUE DE LONDRES, Le Port, La Réunion", "tel": "", "responsable": "François", "lat": -20.933646, "lng": 55.300697}, {"id": 72, "nom": "Cabinet infirmiers DELORME RIO", "secteur": "Non renseigné", "commune": "Le Port", "adresse": "13 rue Paul Eluard, Le Port, La Réunion", "tel": "02 62 59 94 32", "responsable": "", "lat": -20.936589, "lng": 55.305214}, {"id": 73, "nom": "Cabinet infirmiers Hélioport", "secteur": "Non renseigné", "commune": "Le Port", "adresse": "36 rue Salvador Aliende, Le Port, La Réunion", "tel": "", "responsable": "", "lat": -20.934376, "lng": 55.295965}, {"id": 74, "nom": "Cabinet InfirmiersMurat Sahondranirina", "secteur": "Médical / Santé", "commune": "Le Port", "adresse": "2 boulevard de Verdun, Le Port, La Réunion", "tel": "02 62 43 51 67", "responsable": "", "lat": -20.93275, "lng": 55.303219}, {"id": 75, "nom": "CARREFOUR LE PORT", "secteur": "Grande distribution", "commune": "Le Port", "adresse": "Le Port, La Réunion", "tel": "02 62 91 25 00", "responsable": "", "lat": -20.937484, "lng": 55.297364}, {"id": 76, "nom": "Castel Réunion", "secteur": "Non renseigné", "commune": "Le Port", "adresse": "Z1, Le Port, La Réunion", "tel": "02 62 42 07 80", "responsable": "Jean-Philippe", "lat": -20.926368, "lng": 55.302098}, {"id": 77, "nom": "CCAS du Port", "secteur": "Non renseigné", "commune": "Le Port", "adresse": "Rue de Douane, Le Port, La Réunion", "tel": "02 62 55 10 80", "responsable": "OLIVIER", "lat": -20.934167, "lng": 55.300246}, {"id": 78, "nom": "CERBALLIANCE", "secteur": "Divers", "commune": "Le Port", "adresse": "Rue Alsace, Le Port, La Réunion", "tel": "02 62 42 15 48", "responsable": "THOMAS", "lat": -20.938606, "lng": 55.296146}, {"id": 79, "nom": "Ciments de Bourbon", "secteur": "Chimie", "commune": "Le Port", "adresse": "ZI n°1, Le Port, La Réunion", "tel": "02 62 42 58 00", "responsable": "", "lat": -20.935567, "lng": 55.301236}, {"id": 80, "nom": "Clinique des orchidées", "secteur": "Médical / Santé", "commune": "Le Port", "adresse": "30 rue Lénine, Le Port, La Réunion", "tel": "02 62 96 67 00", "responsable": "Marie", "lat": -20.937078, "lng": 55.296083}, {"id": 81, "nom": "Clinique Jeanne d'Arc", "secteur": "Médical / Santé", "commune": "Le Port", "adresse": "Rue Alsace Lorraine, Le Port, La Réunion", "tel": "02 62 42 88 88", "responsable": "Patricia", "lat": -20.939306, "lng": 55.301835}, {"id": 82, "nom": "Clinique Les Tamarins", "secteur": "Médical / Santé", "commune": "Le Port", "adresse": "BP 41007, Le Port, La Réunion", "tel": "02 62 45 85 00", "responsable": "Aude", "lat": -20.937095, "lng": 55.305676}, {"id": 83, "nom": "Clinique OMEGA", "secteur": "Médical / Santé", "commune": "Le Port", "adresse": "6 RUE SIMON PERNIC, Le Port, La Réunion", "tel": "02 62 42 04 30", "responsable": "Manon", "lat": -20.928265, "lng": 55.293992}, {"id": 84, "nom": "CRF YLANG YLANG", "secteur": "Médical / Santé", "commune": "Le Port", "adresse": "RUE ALSACE ET LORRAINE, Le Port, La Réunion", "tel": "02 62 42 89 89", "responsable": "Fabrice", "lat": -20.936968, "lng": 55.302366}, {"id": 85, "nom": "CSAPA Le Port", "secteur": "Non renseigné", "commune": "Le Port", "adresse": "6 rue de Bruxelles, Le Port, La Réunion", "tel": "02 62 30 22 93", "responsable": "", "lat": -20.937301, "lng": 55.294852}, {"id": 86, "nom": "Cuisine centrale du Port (Titan)", "secteur": "Non renseigné", "commune": "Le Port", "adresse": "2 rue Sully Prudhomme, Le Port, La Réunion", "tel": "02 62 42 87 80", "responsable": "", "lat": -20.927203, "lng": 55.300995}, {"id": 87, "nom": "CYCLEA", "secteur": "Déchets / Environnement", "commune": "Le Port", "adresse": "24 rue Pierre Brossolette, Le Port, La Réunion", "tel": "06 93 39 62 66", "responsable": "", "lat": -20.933683, "lng": 55.303985}, {"id": 88, "nom": "Dom'eau Prestige", "secteur": "Eau", "commune": "Le Port", "adresse": "2 rue Gustave Eiffel, Le Port, La Réunion", "tel": "02 62 55 18 00", "responsable": "A", "lat": -20.928995, "lng": 55.295666}, {"id": 89, "nom": "DOULUX", "secteur": "Imprimerie", "commune": "Le Port", "adresse": "414 rue Jules VERNE, Le Port, La Réunion", "tel": "02 62 42 70 80", "responsable": "Loic", "lat": -20.938943, "lng": 55.299035}, {"id": 90, "nom": "EDF PEI ENERGIE", "secteur": "Énergie", "commune": "Le Port", "adresse": "SITE DE LA BAIE DU PORT EST, Le Port, La Réunion", "tel": "02 62 33 46 70", "responsable": "ALEXANDRE", "lat": -20.93437, "lng": 55.299538}, {"id": 91, "nom": "EECA SAS", "secteur": "Chimie", "commune": "Le Port", "adresse": "29 RUE STEVENSON, Le Port, La Réunion", "tel": "02 62 55 03 03", "responsable": "Dominique", "lat": -20.930093, "lng": 55.302427}, {"id": 92, "nom": "GTOI", "secteur": "Travaux publics", "commune": "Le Port", "adresse": "Boulevard de la marine, Le Port, La Réunion", "tel": "06 92 21 57 16", "responsable": "", "lat": -20.926522, "lng": 55.294378}, {"id": 93, "nom": "Imprimerie CHANE PANE", "secteur": "Imprimerie", "commune": "Le Port", "adresse": "36 Claude Chappe, Le Port, La Réunion", "tel": "02 62 42 73 50", "responsable": "Alfred", "lat": -20.934663, "lng": 55.29775}, {"id": 94, "nom": "Jumbo Le Port", "secteur": "Non renseigné", "commune": "Le Port", "adresse": "1 rond-point du Sacré Coeur, Le Port, La Réunion", "tel": "02 62 91 22 60", "responsable": "", "lat": -20.928237, "lng": 55.296481}, {"id": 95, "nom": "Laboratoire d'analyses de bio. méd. Verrougstraete", "secteur": "Analyse / Labo", "commune": "Le Port", "adresse": "Rue Alsace Lorraine, Le Port, La Réunion", "tel": "02 62 42 15 48", "responsable": "jean-Marie", "lat": -20.937637, "lng": 55.299281}, {"id": 96, "nom": "Lafarge Granulats Betons Réunion", "secteur": "Non renseigné", "commune": "Le Port", "adresse": "2 rue Amiral Bouvet, Le Port, La Réunion", "tel": "02 62 42 69 69", "responsable": "", "lat": -20.934394, "lng": 55.2969}, {"id": 97, "nom": "Le Monde de la Glace", "secteur": "Boulangerie / Pâtisserie", "commune": "Le Port", "adresse": "22 RUE PIERRE BROSSOLETTE D18, Le Port, La Réunion", "tel": "02 62 81 89 81", "responsable": "HUGO", "lat": -20.936803, "lng": 55.305926}, {"id": 98, "nom": "Lycée Jean Hinglo", "secteur": "Non renseigné", "commune": "Le Port", "adresse": "2 rue des Sans Soucis, Le Port, La Réunion", "tel": "", "responsable": "", "lat": -20.934096, "lng": 55.305059}, {"id": 99, "nom": "Lycée Lepervanche", "secteur": "Non renseigné", "commune": "Le Port", "adresse": "BP 1015, Le Port, La Réunion", "tel": "02 62 42 75 75", "responsable": "", "lat": -20.932595, "lng": 55.293708}, {"id": 100, "nom": "Mairie du port - Cuisine Centrale", "secteur": "Non renseigné", "commune": "Le Port", "adresse": "2 rue Sully Prud'Homme, Le Port, La Réunion", "tel": "02 62 43 35 32", "responsable": "", "lat": -20.92631, "lng": 55.304704}, {"id": 101, "nom": "Mairie du Port - Service CCAS", "secteur": "Non renseigné", "commune": "Le Port", "adresse": "9 Rue Renandière de Vaux, Le Port, La Réunion", "tel": "02 62 55 10 30", "responsable": "Bruno", "lat": -20.926734, "lng": 55.305969}, {"id": 102, "nom": "MASCARIN", "secteur": "Industrie", "commune": "Le Port", "adresse": "1 Rue Claude Chappe, Le Port, La Réunion", "tel": "02 62 55 10 20", "responsable": "Frédéric", "lat": -20.928418, "lng": 55.295328}, {"id": 103, "nom": "Nutrima production", "secteur": "Non renseigné", "commune": "Le Port", "adresse": "8 rue Claude Chappe, Le Port, La Réunion", "tel": "02 62 70 90 00", "responsable": "Xavier", "lat": -20.933501, "lng": 55.295992}, {"id": 104, "nom": "Oceane Fish", "secteur": "Non renseigné", "commune": "Le Port", "adresse": "1 rue de l'Est, Le Port, La Réunion", "tel": "02 62 43 62 82", "responsable": "", "lat": -20.934685, "lng": 55.293821}, {"id": 105, "nom": "OVOCOOP", "secteur": "Industrie", "commune": "Le Port", "adresse": "Rue Claude Chappe, Le Port, La Réunion", "tel": "02 62 43 25 61", "responsable": "Patrick", "lat": -20.934994, "lng": 55.306794}, {"id": 106, "nom": "Pharmacie Titan", "secteur": "Non renseigné", "commune": "Le Port", "adresse": "2 avenue Pasteur, Le Port, La Réunion", "tel": "", "responsable": "", "lat": -20.936587, "lng": 55.303977}, {"id": 107, "nom": "Piscine du Port", "secteur": "Maintenance / Énergie", "commune": "Le Port", "adresse": "Avenue R. Mondon, Le Port, La Réunion", "tel": "02 62 42 00 30", "responsable": "Olivier", "lat": -20.93393, "lng": 55.298922}, {"id": 108, "nom": "Réunion Pélagique Traiteur", "secteur": "Non renseigné", "commune": "Le Port", "adresse": "9 rue d'Armagnac, Le Port, La Réunion", "tel": "02 62 22 12 39", "responsable": "", "lat": -20.926898, "lng": 55.306936}, {"id": 109, "nom": "Réunipêche", "secteur": "Non renseigné", "commune": "Le Port", "adresse": "9 rue d'Armagnac, Le Port, La Réunion", "tel": "02 62 96 54 55", "responsable": "HUBERT", "lat": -20.932519, "lng": 55.303058}, {"id": 110, "nom": "RUNEO STEU LE PORT", "secteur": "Non renseigné", "commune": "Le Port", "adresse": "98 rue du Général de Gaulle, Le Port, La Réunion", "tel": "02 62 90 25 25", "responsable": "Geoffroy", "lat": -20.938133, "lng": 55.297154}, {"id": 111, "nom": "Selas Cerballiance Réunion", "secteur": "Analyse / Labo", "commune": "Le Port", "adresse": "Rue Alsace Lorraine, Le Port, La Réunion", "tel": "02 62 42 15 48", "responsable": "", "lat": -20.926738, "lng": 55.301109}, {"id": 112, "nom": "SIB (Société Industrielle de Bourbon)", "secteur": "Chimie", "commune": "Le Port", "adresse": "Voie de Liaison Portuaire, Le Port, La Réunion", "tel": "02 62 42 13 15", "responsable": "Pascal", "lat": -20.932709, "lng": 55.303472}, {"id": 113, "nom": "SOBORIZ INDUSTRIES S.A.", "secteur": "Industrie", "commune": "Le Port", "adresse": "ZI n°1, Le Port, La Réunion", "tel": "02 62 42 03 83", "responsable": "PATRICK", "lat": -20.9395, "lng": 55.301178}, {"id": 114, "nom": "Sorelait Danone", "secteur": "Industrie", "commune": "Le Port", "adresse": "24 rue Sully Prud'Homme, Le Port, La Réunion", "tel": "", "responsable": "François", "lat": -20.93326, "lng": 55.304938}, {"id": 115, "nom": "St Rolan", "secteur": "Boulangerie / Pâtisserie", "commune": "Le Port", "adresse": "13 rue Claude Chappe, Le Port, La Réunion", "tel": "02 62 43 43 53", "responsable": "Pierre-Paul", "lat": -20.938096, "lng": 55.306451}, {"id": 116, "nom": "Stella traiteur", "secteur": "Restauration", "commune": "Le Port", "adresse": "154 rue poulot Olivier, Le Port, La Réunion", "tel": "02 62 55 91 81", "responsable": "Axel", "lat": -20.939178, "lng": 55.295602}, {"id": 117, "nom": "VALOBIO", "secteur": "Non renseigné", "commune": "Le Port", "adresse": "9 IMPASSE DE DOHA, Le Port, La Réunion", "tel": "06 92 82 08 30", "responsable": "", "lat": -20.93197, "lng": 55.302453}, {"id": 118, "nom": "VINDEMIA", "secteur": "Agroalimentaire", "commune": "Le Port", "adresse": "LE SACRE COEUR, Le Port, La Réunion", "tel": "02 62 91 25 00", "responsable": "MYRIAM", "lat": -20.937007, "lng": 55.294678}, {"id": 119, "nom": "Association FAM (Fondation André Malet)", "secteur": "Non renseigné", "commune": "Le Tampon", "adresse": "123 rue Alverdy, Le Tampon, La Réunion", "tel": "02 62 61 75 97", "responsable": "", "lat": -21.277836, "lng": 55.513147}, {"id": 120, "nom": "Boulangerie-Patisserie Kaz Macarons", "secteur": "Non renseigné", "commune": "Le Tampon", "adresse": "26 Rue des Lianes d'Or, Le Tampon, La Réunion", "tel": "02 62 71 25 98", "responsable": "", "lat": -21.281977, "lng": 55.518371}, {"id": 121, "nom": "Cabinet Infirmiers LAPIERRE DULEROY TARBY", "secteur": "Non renseigné", "commune": "Le Tampon", "adresse": "41 rue Vallon Hoarau, Le Tampon, La Réunion", "tel": "02 62 27 03 65", "responsable": "", "lat": -21.284431, "lng": 55.517871}, {"id": 122, "nom": "CAHEB", "secteur": "Non renseigné", "commune": "Le Tampon", "adresse": "83 rue Kerveguen, Le Tampon, La Réunion", "tel": "02 62 27 02 27", "responsable": "MARIE ROSE", "lat": -21.282981, "lng": 55.522786}, {"id": 123, "nom": "CCAS du Tampon", "secteur": "Non renseigné", "commune": "Le Tampon", "adresse": "256 Rue Hubert Delisle, Le Tampon, La Réunion", "tel": "02 62 33 12 13", "responsable": "André", "lat": -21.28744, "lng": 55.519727}, {"id": 124, "nom": "CERBALLIANCE SITE CLINISUD", "secteur": "Non renseigné", "commune": "Le Tampon", "adresse": "93 Rue Raymond BARRE, Le Tampon, La Réunion", "tel": "06 92 91 20 66", "responsable": "Thierry", "lat": -21.286958, "lng": 55.515241}, {"id": 125, "nom": "CISE Réunion-Sud Ouest-Tampon", "secteur": "Eau", "commune": "Le Tampon", "adresse": "109 rue Marius et Ary Leblond, Le Tampon, La Réunion", "tel": "", "responsable": "ALEXANDRE", "lat": -21.280896, "lng": 55.5139}, {"id": 126, "nom": "Mairie du Tampon", "secteur": "Collectivité", "commune": "Le Tampon", "adresse": "rue Hubert Delisle, Le Tampon, La Réunion", "tel": "02 62 43 79 53", "responsable": "", "lat": -21.285874, "lng": 55.520226}, {"id": 127, "nom": "Maison du diabète de La Réunion", "secteur": "Non renseigné", "commune": "Le Tampon", "adresse": "27 rue du Tampon, Le Tampon, La Réunion", "tel": "02 62 38 60 42", "responsable": "", "lat": -21.289284, "lng": 55.516116}, {"id": 128, "nom": "Microlab La Plaine des Cafres", "secteur": "Analyse / Labo", "commune": "Le Tampon", "adresse": "50 chemin Alfred Picard, Le Tampon, La Réunion", "tel": "02 62 27 50 59", "responsable": "", "lat": -21.276322, "lng": 55.523645}, {"id": 129, "nom": "Piscine de Trois Mares", "secteur": "Maintenance / Énergie", "commune": "Le Tampon", "adresse": "Trois Mares, Le Tampon, La Réunion", "tel": "02 62 57 64 87", "responsable": "", "lat": -21.289274, "lng": 55.512684}, {"id": 130, "nom": "CCAS des Avirons", "secteur": "Non renseigné", "commune": "Les Avirons", "adresse": "61 avenue du Général de Gaulle, Les Avirons, La Réunion", "tel": "02 62 39 69 71", "responsable": "ERIC", "lat": -21.236587, "lng": 55.339366}, {"id": 131, "nom": "Piscine des Avirons", "secteur": "Maintenance / Énergie", "commune": "Les Avirons", "adresse": "2 rue Paulo Brabant, Les Avirons, La Réunion", "tel": "02 62 38 02 66", "responsable": "", "lat": -21.227968, "lng": 55.33861}, {"id": 132, "nom": "Boulangerie-Pâtisserie Maillot les dauphins", "secteur": "Boulangerie / Pâtisserie", "commune": "La Montagne", "adresse": "11 bis chemin Hautbois, La Montagne, La Réunion", "tel": "02 62 23 93 46", "responsable": "Yannick", "lat": -20.868527, "lng": 55.411908}, {"id": 133, "nom": "Cabinet d'infirmiers PAYET Brigitte", "secteur": "Médical / Santé", "commune": "La Montagne", "adresse": "146 chemin du Père Rimbaud, La Montagne, La Réunion", "tel": "02 62 23 70 75", "responsable": "Brigitte", "lat": -20.862028, "lng": 55.41955}, {"id": 134, "nom": "NOVESCIA La Montagne", "secteur": "Non renseigné", "commune": "La Montagne", "adresse": "11 chemin Haut Bois, La Montagne, La Réunion", "tel": "02 62 40 51 20", "responsable": "", "lat": -20.865137, "lng": 55.423521}, {"id": 135, "nom": "Boulangerie L'île aux pains La Plaine", "secteur": "Boulangerie / Pâtisserie", "commune": "La Plaine St Paul", "adresse": "2 rue Etienne Regnault, La Plaine St Paul, La Réunion", "tel": "06 92 13 94 18", "responsable": "", "lat": -20.977844, "lng": 55.39311}, {"id": 136, "nom": "Boulangerie-Pâtisserie Bruno Chauvin La Plaine", "secteur": "Non renseigné", "commune": "La Plaine St Paul", "adresse": "32 chemin Combavas, La Plaine St Paul, La Réunion", "tel": "02 62 57 43 85", "responsable": "", "lat": -20.975561, "lng": 55.397191}, {"id": 137, "nom": "SARL L'Opéra", "secteur": "Non renseigné", "commune": "La Rivière St Louis", "adresse": "4 bis rue du père Delaporte, La Rivière St Louis, La Réunion", "tel": "02 62 39 39 39", "responsable": "", "lat": -21.281013, "lng": 55.472845}, {"id": 138, "nom": "Association CLEF", "secteur": "Non renseigné", "commune": "La Saline", "adresse": "25 impasse Bec d'Alouette, La Saline, La Réunion", "tel": "02 62 22 29 63", "responsable": "Gilbert", "lat": -21.08512, "lng": 55.284616}, {"id": 139, "nom": "Boulangerie Le grain de blé Hermitage", "secteur": "Boulangerie / Pâtisserie", "commune": "La Saline", "adresse": "1 chemin Longuet, La Saline, La Réunion", "tel": "02 62 59 85 27", "responsable": "Didier", "lat": -21.085501, "lng": 55.290745}, {"id": 140, "nom": "Cabinet d'infirmiers Maden-Faubourg-Irissin-Robert", "secteur": "Médical / Santé", "commune": "La Saline", "adresse": "5 ruelle de la poste, La Saline, La Réunion", "tel": "02 62 33 52 15", "responsable": "", "lat": -21.083187, "lng": 55.291468}, {"id": 141, "nom": "Cabinet infirmiers MARDAYE-TABERE", "secteur": "Non renseigné", "commune": "La Saline", "adresse": "1 chemin l'Evêque, La Saline, La Réunion", "tel": "02 62 33 54 47", "responsable": "", "lat": -21.076953, "lng": 55.28585}, {"id": 142, "nom": "CONFISERIE HOARAU", "secteur": "Boulangerie / Pâtisserie", "commune": "La Saline les Bains", "adresse": "34 CHEMIN GUICHARD, La Saline les Bains, La Réunion", "tel": "02 62 71 22 93", "responsable": "CEDRIC", "lat": -21.058121, "lng": 55.271696}, {"id": 143, "nom": "Fondation Père Favron EHPAD Les Alizés", "secteur": "Médical / Santé", "commune": "La Saline les Bains", "adresse": "22 rue des scalaires, La Saline les Bains, La Réunion", "tel": "02 62 33 89 89", "responsable": "Corinne", "lat": -21.060161, "lng": 55.280675}, {"id": 144, "nom": "SARL O'CYAN", "secteur": "Non renseigné", "commune": "La Saline les Bains", "adresse": "183 route de Saint Pierre, La Saline les Bains, La Réunion", "tel": "02 62 74 73 20", "responsable": "Christelle", "lat": -21.055155, "lng": 55.269292}, {"id": 145, "nom": "Boulangerie Grain de Blé Saveur des O", "secteur": "Non renseigné", "commune": "La Saline les Hauts", "adresse": "1 chemin Longuet, La Saline les Hauts, La Réunion", "tel": "02 62 25 58 71", "responsable": "", "lat": -21.07607, "lng": 55.291874}, {"id": 146, "nom": "Z'infymiers Deo", "secteur": "Médical / Santé", "commune": "Le Guillaume", "adresse": "3 rue de l'église, Le Guillaume, La Réunion", "tel": "02 62 32 59 44", "responsable": "Philippe", "lat": -21.07365, "lng": 55.403796}, {"id": 147, "nom": "Piscine Saint Leu STELLA", "secteur": "Non renseigné", "commune": "Piton St Leu", "adresse": "14 Rue de la ferme d'autruches, Piton St Leu, La Réunion", "tel": "02 62 96 59 00", "responsable": "Bruno", "lat": -21.18138, "lng": 55.279967}, {"id": 148, "nom": "SWIMMING COOL", "secteur": "Maintenance / Énergie", "commune": "Piton St Leu", "adresse": "41 allée des flamboyants, Piton St Leu, La Réunion", "tel": "06 92 60 60 15", "responsable": "Vincent", "lat": -21.179923, "lng": 55.284024}, {"id": 149, "nom": "Bionostic Piton St Leu", "secteur": "Non renseigné", "commune": "Piton St Leu", "adresse": "21 rue Adrien Lagourgue, Piton St Leu, La Réunion", "tel": "02 62 34 20 99", "responsable": "", "lat": -21.184312, "lng": 55.276435}, {"id": 150, "nom": "Boulangerie Les Douceurs de Sava", "secteur": "Non renseigné", "commune": "Piton St Leu", "adresse": "19 rue Adrein Lagourgue, Piton St Leu, La Réunion", "tel": "02 62 34 93 81", "responsable": "Philippe", "lat": -21.189247, "lng": 55.288663}, {"id": 151, "nom": "Boulangerie-Pâtisserie Au vieux moulin", "secteur": "Boulangerie / Pâtisserie", "commune": "Piton St Leu", "adresse": "54 rue Adrien Lagourgue, Piton St Leu, La Réunion", "tel": "02 62 38 45 60", "responsable": "", "lat": -21.177645, "lng": 55.283938}, {"id": 152, "nom": "Cabinet Infirmiers RICQUEBOURG", "secteur": "Non renseigné", "commune": "Piton St Leu", "adresse": "42F rue Adrien Lagourgue, Piton St Leu, La Réunion", "tel": "02 62 34 33 14", "responsable": "", "lat": -21.178616, "lng": 55.284455}, {"id": 153, "nom": "Cabinet vétérinaire Beaudouard-Bonneville", "secteur": "Non renseigné", "commune": "Piton St Leu", "adresse": "62 C rue A. Lagourgue, Piton St Leu, La Réunion", "tel": "02 62 10 68 48", "responsable": "Pascal", "lat": -21.188227, "lng": 55.278084}, {"id": 154, "nom": "Charcuterie APAYA", "secteur": "Non renseigné", "commune": "Piton St Leu", "adresse": "1 rue des base roses, Piton St Leu, La Réunion", "tel": "02 62 34 08 86", "responsable": "", "lat": -21.185984, "lng": 55.288886}, {"id": 155, "nom": "Charcuterie Jean-Claude", "secteur": "Agroalimentaire", "commune": "Piton St Leu", "adresse": "52 rue Adrien Lagourgue, Piton St Leu, La Réunion", "tel": "02 62 34 08 70", "responsable": "Jean-Claude", "lat": -21.179154, "lng": 55.28835}, {"id": 156, "nom": "Boulangerie Le pain frotté Plateau Caillou", "secteur": "Non renseigné", "commune": "Plateau Caillou", "adresse": "8 rue des cateaux, Plateau Caillou, La Réunion", "tel": "02 62 22 91 22", "responsable": "NICOLAS", "lat": -21.024415, "lng": 55.345941}, {"id": 157, "nom": "Cabinet Infirmiers SCM-SIPC", "secteur": "Non renseigné", "commune": "Plateau Caillou", "adresse": "50 avenue Julius Benard, Plateau Caillou, La Réunion", "tel": "02 62 71 08 14", "responsable": "", "lat": -21.033507, "lng": 55.344439}, {"id": 158, "nom": "CLIMAT ELECTRIC", "secteur": "Divers", "commune": "Plateau Caillou", "adresse": "92 RUE CLAUDE DE SIGOYER, Plateau Caillou, La Réunion", "tel": "06 92 31 08 83", "responsable": "Fabrice", "lat": -21.026078, "lng": 55.355378}, {"id": 159, "nom": "Microlab La Ravine des Cabris", "secteur": "Non renseigné", "commune": "Ravine des Cabris", "adresse": "11 rue de l'Eglise, Ravine des Cabris, La Réunion", "tel": "02 62 27 50 59", "responsable": "", "lat": -21.318011, "lng": 55.484989}, {"id": 160, "nom": "L.A.B.M. Rivière St Louis", "secteur": "Non renseigné", "commune": "La Rivière St Louis", "adresse": "138 rue MRG de Beaumont, La Rivière St Louis, La Réunion", "tel": "02 62 32 26 26", "responsable": "", "lat": -21.288136, "lng": 55.472718}, {"id": 161, "nom": "Association AIDE & PROTECT ENFANCE & JEUNESSE", "secteur": "Non renseigné", "commune": "St Gilles les Hauts", "adresse": "35 ter chemin Tamatave, St Gilles les Hauts, La Réunion", "tel": "02 62 91 59 47", "responsable": "Frédéric", "lat": -21.061596, "lng": 55.273367}, {"id": 162, "nom": "ESPACE CLIM ET FROID", "secteur": "Non renseigné", "commune": "St Gilles les Hauts", "adresse": "81 RUE DES ECOLES, St Gilles les Hauts, La Réunion", "tel": "02 62 28 05 45", "responsable": "Françoise", "lat": -21.062349, "lng": 55.27204}, {"id": 163, "nom": "REUNION PLOMBERIE SOLAIRE", "secteur": "Plomberie", "commune": "St Gilles les Hauts", "adresse": "5 IMPASSE DES GRANDS BOIS, St Gilles les Hauts, La Réunion", "tel": "02 62 61 73 52", "responsable": "OLIVIER", "lat": -21.073353, "lng": 55.270012}, {"id": 164, "nom": "Boulangerie Oh My Bread", "secteur": "Boulangerie / Pâtisserie", "commune": "St André", "adresse": "1221 avenue ile de france, St André, La Réunion", "tel": "06 92 75 54 35", "responsable": "Anne", "lat": -20.969049, "lng": 55.656031}, {"id": 165, "nom": "CCAS Saint-André", "secteur": "Non renseigné", "commune": "St André", "adresse": "Place de la liberté, St André, La Réunion", "tel": "02 62 46 39 39", "responsable": "Eric", "lat": -20.962469, "lng": 55.655097}, {"id": 166, "nom": "Association des diabetiques juniors", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "14 Boulevard Doret-BP340, St Denis, La Réunion", "tel": "02 62 94 77 00", "responsable": "Danie", "lat": -20.87455, "lng": 55.444835}, {"id": 167, "nom": "Castel Montmorency", "secteur": "Boulangerie / Pâtisserie", "commune": "St Denis", "adresse": "23 bd St François, St Denis, La Réunion", "tel": "", "responsable": "", "lat": -20.874877, "lng": 55.442613}, {"id": 168, "nom": "CFEE SOURCE NATURE CYROI", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "2 rue Maxime Riviere, St Denis, La Réunion", "tel": "06 93 82 40 96", "responsable": "", "lat": -20.87369, "lng": 55.45312}, {"id": 169, "nom": "CGSS St Denis", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "4 boulevard Doret, St Denis, La Réunion", "tel": "02 62 45 80 58", "responsable": "Charles", "lat": -20.882786, "lng": 55.452532}, {"id": 170, "nom": "CHU Félix GUYON", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "Allée des Topazes, St Denis, La Réunion", "tel": "02 62 90 50 50", "responsable": "Lionel", "lat": -20.879456, "lng": 55.445373}, {"id": 171, "nom": "CILAM L&J", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "56 QUAI OUEST BP264, St Denis, La Réunion", "tel": "02 62 90 27 27", "responsable": "SANDRA", "lat": -20.874765, "lng": 55.444286}, {"id": 172, "nom": "Comité Réunion Ligue contre le Cancer", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "19 allée des Thuyas, St Denis, La Réunion", "tel": "02 62 20 12 11", "responsable": "", "lat": -20.885569, "lng": 55.443804}, {"id": 173, "nom": "CONSEIL DEPARTEMENTAL", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "12 rue Jean Chatel, St Denis, La Réunion", "tel": "02 62 96 90 30", "responsable": "Cyrille", "lat": -20.881304, "lng": 55.453201}, {"id": 174, "nom": "Croix Rouge Française", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "40 D Rue de Bois De Nèfles, St Denis, La Réunion", "tel": "02 62 45 50 14", "responsable": "", "lat": -20.872364, "lng": 55.445008}, {"id": 175, "nom": "CTA Reunion", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "2 allée Bonnier, St Denis, La Réunion", "tel": "02 62 20 99 10", "responsable": "Antonin", "lat": -20.876919, "lng": 55.446695}, {"id": 176, "nom": "GIP CYROI", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "2 Rue Maxime Riviere, St Denis, La Réunion", "tel": "02 62 93 88 00", "responsable": "Christian", "lat": -20.872164, "lng": 55.448607}, {"id": 177, "nom": "Groupe CRC", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "2 bis Ruelle Pavée, St Denis, La Réunion", "tel": "02 62 90 01 00", "responsable": "", "lat": -20.872751, "lng": 55.442715}, {"id": 178, "nom": "La Ligue Contre le Cancer", "secteur": "Médical / Santé", "commune": "St Denis", "adresse": "19 allée des thuyas, St Denis, La Réunion", "tel": "02 62 20 12 11", "responsable": "", "lat": -20.872314, "lng": 55.4436}, {"id": 179, "nom": "Mairie de Saint-Denis", "secteur": "Collectivité", "commune": "St Denis", "adresse": "2 rue de paris, St Denis, La Réunion", "tel": "02 62 40 04 04", "responsable": "JOCYA", "lat": -20.872425, "lng": 55.444817}, {"id": 180, "nom": "Mutualité de la Réunion", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "14 boulevard Doret, St Denis, La Réunion", "tel": "02 62 94 77 00", "responsable": "Jean-Charles", "lat": -20.884382, "lng": 55.447184}, {"id": 181, "nom": "ORIAPA", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "35 rue du Bois de Nèfles, St Denis, La Réunion", "tel": "02 62 20 39 37", "responsable": "", "lat": -20.8757, "lng": 55.445491}, {"id": 182, "nom": "POKERUN ST DENIS", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "110 RUE JEAN CHATEL, St Denis, La Réunion", "tel": "02 62 73 12 90", "responsable": "Adrien", "lat": -20.877413, "lng": 55.44826}, {"id": 183, "nom": "SOGEA REUNION", "secteur": "Eau", "commune": "St Denis", "adresse": "1 BOULEVARD DU CHAUDRON, St Denis, La Réunion", "tel": "02 62 48 39 06", "responsable": "PATRICK", "lat": -20.880507, "lng": 55.449172}, {"id": 184, "nom": "UNIVERSITE DE LA REUNION", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "15 AV RENE CASSIN, St Denis, La Réunion", "tel": "02 62 93 82 42", "responsable": "Matthieu", "lat": -20.882334, "lng": 55.451023}, {"id": 185, "nom": "220V", "secteur": "Maintenance / Énergie", "commune": "St Leu", "adresse": "8 CHEMIN BOIS DE POMME, St Leu, La Réunion", "tel": "06 92 86 27 12", "responsable": "Fréderic", "lat": -21.173676, "lng": 55.289258}, {"id": 186, "nom": "CCAS de St Leu", "secteur": "Non renseigné", "commune": "St Leu", "adresse": "Rue du Général Lambert, St Leu, La Réunion", "tel": "02 62 34 28 35", "responsable": "Bruno", "lat": -21.166162, "lng": 55.286372}, {"id": 187, "nom": "DERICHEBOURG AQUA OCEAN INDIEN", "secteur": "Eau", "commune": "St Leu", "adresse": "212 Rue du Géneral Lambert, St Leu, La Réunion", "tel": "03 62 26 41 12", "responsable": "", "lat": -21.163313, "lng": 55.285689}, {"id": 188, "nom": "Mairie de Saint-Leu", "secteur": "Collectivité", "commune": "St Leu", "adresse": "Rue du Général Lambert, St Leu, La Réunion", "tel": "02 62 34 80 03", "responsable": "Kévin", "lat": -21.168601, "lng": 55.27728}, {"id": 189, "nom": "SPL RMR Kélonia", "secteur": "Eau", "commune": "St Leu", "adresse": "46 Rue du Général de Gaulle, St Leu, La Réunion", "tel": "02 62 34 81 10", "responsable": "Stéphane", "lat": -21.164401, "lng": 55.280923}, {"id": 190, "nom": "ALBIOMA LE GOL", "secteur": "Non renseigné", "commune": "St Louis", "adresse": "1 ROUTE NATIONALE LE GOL, St Louis, La Réunion", "tel": "02 62 91 29 00", "responsable": "", "lat": -21.269305, "lng": 55.454872}, {"id": 191, "nom": "Association Nou Le La", "secteur": "Non renseigné", "commune": "St Louis", "adresse": "5 bis rue Valère Clément, St Louis, La Réunion", "tel": "", "responsable": "", "lat": -21.263623, "lng": 55.447205}, {"id": 192, "nom": "Boulangerie Aux Mille Délices", "secteur": "Boulangerie / Pâtisserie", "commune": "St Louis", "adresse": "46g Route nationale, St Louis, La Réunion", "tel": "02 62 25 46 87", "responsable": "Raphaël", "lat": -21.26937, "lng": 55.448718}, {"id": 193, "nom": "FOURNIL DU DELICE", "secteur": "Boulangerie / Pâtisserie", "commune": "St Louis", "adresse": "10 rue SAINT-DENIS, St Louis, La Réunion", "tel": "06 92 66 80 76", "responsable": "", "lat": -21.268066, "lng": 55.447139}, {"id": 194, "nom": "SARL CILAOS", "secteur": "Industrie", "commune": "St Louis", "adresse": "12 RUE VALMY, St Louis, La Réunion", "tel": "02 62 26 16 60", "responsable": "B", "lat": -21.271918, "lng": 55.448886}, {"id": 195, "nom": "3 BRASSEURS", "secteur": "Agroalimentaire", "commune": "St Paul", "adresse": "2 route de Savannah, St Paul, La Réunion", "tel": "02 62 31 61 00", "responsable": "", "lat": -20.977135, "lng": 55.269182}, {"id": 196, "nom": "ASA Ouest St Paul", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "60 rue Claude de Sigoyer, St Paul, La Réunion", "tel": "02 62 55 47 47", "responsable": "", "lat": -20.977661, "lng": 55.268317}, {"id": 197, "nom": "Boulangerie Casta St Paul", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "317 bis chaussée Royale, St Paul, La Réunion", "tel": "02 62 35 34 70", "responsable": "", "lat": -20.986087, "lng": 55.267371}, {"id": 198, "nom": "Cabinet d'Infirmière Tardieu Cécile", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "6 route de Savanna, St Paul, La Réunion", "tel": "", "responsable": "", "lat": -20.990294, "lng": 55.263717}, {"id": 199, "nom": "Cabinet Infirmiers Verbard/Laravine", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "1 chemin Pavé Lougnon, St Paul, La Réunion", "tel": "02 62 38 34 94", "responsable": "", "lat": -20.984282, "lng": 55.26782}, {"id": 200, "nom": "CAF ST PAUL", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "20 ROUTE DE SAVANNAH, St Paul, La Réunion", "tel": "02 62 48 62 92", "responsable": "", "lat": -20.981134, "lng": 55.26621}, {"id": 201, "nom": "Charcuterie Raymond", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "14 bis rue Guldive, St Paul, La Réunion", "tel": "02 62 45 60 31", "responsable": "", "lat": -20.98411, "lng": 55.262692}, {"id": 202, "nom": "CHOR", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "5 impasse Plaine Chabrier, St Paul, La Réunion", "tel": "02 62 45 30 30", "responsable": "HANIFA", "lat": -20.983675, "lng": 55.272317}, {"id": 203, "nom": "COMMUNE DE SAINT-PAUL", "secteur": "Collectivité", "commune": "St Paul", "adresse": "CCS 1015, St Paul, La Réunion", "tel": "02 62 45 37 50", "responsable": "emmanuel", "lat": -20.979156, "lng": 55.262076}, {"id": 204, "nom": "CROIX MARINE", "secteur": "Divers", "commune": "St Paul", "adresse": "35 ROUTE DES PREMIERS FRANCAIS, St Paul, La Réunion", "tel": "02 62 40 60 26", "responsable": "CHRISTOPHE", "lat": -20.989113, "lng": 55.266916}, {"id": 205, "nom": "Croix Rouge Française Savannah", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "6Ter route de Savanna, St Paul, La Réunion", "tel": "02 62 45 50 14", "responsable": "Georges", "lat": -20.981439, "lng": 55.264393}, {"id": 206, "nom": "E.M.I.E SARL", "secteur": "Maintenance / Énergie", "commune": "St Paul", "adresse": "74 bis Route de Cambaie, St Paul, La Réunion", "tel": "02 62 45 56 93", "responsable": "Eric", "lat": -20.978842, "lng": 55.270216}, {"id": 207, "nom": "EHPAD Gabriel Martin St Paul", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "38 rue de Labourdonnais, St Paul, La Réunion", "tel": "02 62 45 30 30", "responsable": "", "lat": -20.980881, "lng": 55.262845}, {"id": 208, "nom": "Europe Sol", "secteur": "Maintenance / Énergie", "commune": "St Paul", "adresse": "18 IMP CERNOT, St Paul, La Réunion", "tel": "02 62 54 57 44", "responsable": "Cédric", "lat": -20.987512, "lng": 55.260042}, {"id": 209, "nom": "EURL LE PAIN FROTTE", "secteur": "Boulangerie / Pâtisserie", "commune": "St Paul", "adresse": "8 rue des Cateaux, St Paul, La Réunion", "tel": "02 62 22 91 22", "responsable": "ERICK", "lat": -20.986872, "lng": 55.266352}, {"id": 210, "nom": "EURL SAVIGNAN", "secteur": "Boulangerie / Pâtisserie", "commune": "St Paul", "adresse": "10 rue Suffren, St Paul, La Réunion", "tel": "02 62 45 54 63", "responsable": "", "lat": -20.978404, "lng": 55.26072}, {"id": 211, "nom": "GCS-UPAC", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "42 Chemin du Grand Pourpier, St Paul, La Réunion", "tel": "02 62 74 31 56", "responsable": "Dominique", "lat": -20.984498, "lng": 55.268517}, {"id": 212, "nom": "HYGITEK ST PAUL", "secteur": "Chimie", "commune": "St Paul", "adresse": "16 rue des Corbeilles d'Or, St Paul, La Réunion", "tel": "06 93 01 59 99", "responsable": "Saïd", "lat": -20.987578, "lng": 55.269449}, {"id": 213, "nom": "INTERLINGE", "secteur": "Industrie", "commune": "St Paul", "adresse": "12 Rue des cateaux, St Paul, La Réunion", "tel": "02 62 55 31 61", "responsable": "", "lat": -20.983379, "lng": 55.263116}, {"id": 214, "nom": "L'atelier du pain", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "19 bis chemin Crève Coeur, St Paul, La Réunion", "tel": "02 62 44 20 46", "responsable": "Nicolas", "lat": -20.981115, "lng": 55.259778}, {"id": 215, "nom": "La Salsa des Pains", "secteur": "Boulangerie / Pâtisserie", "commune": "St Paul", "adresse": "1 rue des Anônes, St Paul, La Réunion", "tel": "02 62 44 45 39", "responsable": "", "lat": -20.979786, "lng": 55.270481}, {"id": 216, "nom": "La Toque des Mascareignes", "secteur": "Restauration", "commune": "St Paul", "adresse": "16 rue Jules Thirel, St Paul, La Réunion", "tel": "02 62 42 20 20", "responsable": "", "lat": -20.988808, "lng": 55.265652}, {"id": 217, "nom": "LES MACARONS DE LEHNY", "secteur": "Agroalimentaire", "commune": "St Paul", "adresse": "13 rue Marius et Ary Leblond, St Paul, La Réunion", "tel": "06 92 69 02 38", "responsable": "", "lat": -20.987838, "lng": 55.273112}, {"id": 218, "nom": "Mission Intercommunale Ouest", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "65 rue du Kovil, St Paul, La Réunion", "tel": "02 62 45 39 60", "responsable": "Claire", "lat": -20.983049, "lng": 55.260403}, {"id": 219, "nom": "POKERUN SAVANNA", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "4 ROUTE DE SAVANNA, St Paul, La Réunion", "tel": "02 62 95 89 39", "responsable": "Adrien", "lat": -20.986811, "lng": 55.271577}, {"id": 220, "nom": "SARL MACARONS ETC", "secteur": "Boulangerie / Pâtisserie", "commune": "St Paul", "adresse": "46 Rue Pothier, St Paul, La Réunion", "tel": "02 62 02 45 64", "responsable": "Kévin", "lat": -20.98391, "lng": 55.27092}, {"id": 221, "nom": "SARL PASSION D'EAU", "secteur": "Maintenance / Énergie", "commune": "St Paul", "adresse": "2 rue Frédéric Payet, St Paul, La Réunion", "tel": "02 62 22 59 02", "responsable": "Frédéric", "lat": -20.980954, "lng": 55.27353}, {"id": 222, "nom": "UNIVERS AQUATIQUE", "secteur": "Eau", "commune": "St Paul", "adresse": "12 rue Lambert, St Paul, La Réunion", "tel": "02 62 02 80 20", "responsable": "Phillipe", "lat": -20.981964, "lng": 55.273001}, {"id": 223, "nom": "Brasserie Dalons", "secteur": "Agroalimentaire", "commune": "Ste Marie", "adresse": "8 rue André Lardy, Ste Marie, La Réunion", "tel": "02 62 93 26 05", "responsable": "", "lat": -20.87782, "lng": 55.534877}, {"id": 224, "nom": "CAF Sainte-Marie", "secteur": "Non renseigné", "commune": "Ste Marie", "adresse": "412 rue Fleur de Jade, Ste Marie, La Réunion", "tel": "02 62 48 65 60", "responsable": "FREDERIC", "lat": -20.88023, "lng": 55.533367}, {"id": 225, "nom": "CAISSE D'ALLOCATIONS FAMILIALES", "secteur": "Non renseigné", "commune": "Ste Marie", "adresse": "412 Rue Fleur de Jade, Ste Marie, La Réunion", "tel": "", "responsable": "", "lat": -20.878672, "lng": 55.53397}, {"id": 226, "nom": "Mairie de Sainte-Marie - cuisine centrale", "secteur": "Non renseigné", "commune": "Ste Marie", "adresse": "3 rue de la République, Ste Marie, La Réunion", "tel": "06 92 65 68 34", "responsable": "RICHARD", "lat": -20.877739, "lng": 55.536711}, {"id": 227, "nom": "REU Société Industrielle du Nord", "secteur": "Industrie", "commune": "Ste Suzanne", "adresse": "4 bis rue Ambroise Croizat, Ste Suzanne, La Réunion", "tel": "02 62 53 28 28", "responsable": "", "lat": -20.917055, "lng": 55.596629}, {"id": 228, "nom": "Distillerie de Savanna", "secteur": "Industrie", "commune": "St André", "adresse": "2 cours de l'usine, St André, La Réunion", "tel": "02 62 58 03 98", "responsable": "Laurent", "lat": -20.970239, "lng": 55.651927}, {"id": 229, "nom": "Sucrerie de Bois Rouge", "secteur": "Industrie", "commune": "St André", "adresse": "2 chemin Bois Rouge, St André, La Réunion", "tel": "02 62 58 83 30", "responsable": "", "lat": -20.962979, "lng": 55.650298}, {"id": 230, "nom": "Distillerie Rivière du Mât", "secteur": "Industrie", "commune": "St Benoît", "adresse": "Chemin Manioc, St Benoît, La Réunion", "tel": "", "responsable": "", "lat": -21.031526, "lng": 55.713544}, {"id": 231, "nom": "GHER Groupe Hospitalier Est Réunion", "secteur": "Non renseigné", "commune": "St Benoît", "adresse": "route nationale 3 30, St Benoît, La Réunion", "tel": "02 62 98 80 00", "responsable": "LIONEL", "lat": -21.039215, "lng": 55.7137}, {"id": 232, "nom": "Agence Santé Océan Indien", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "2 bis avenue Georges Brassens, St Denis, La Réunion", "tel": "", "responsable": "", "lat": -20.882096, "lng": 55.445576}, {"id": 233, "nom": "ARPS Association Réunionnaise pour la Prévention", "secteur": "Analyse / Labo", "commune": "St Denis", "adresse": "11 bis Rue Saint-Jacques, St Denis, La Réunion", "tel": "02 62 53 94 34", "responsable": "", "lat": -20.878338, "lng": 55.443037}, {"id": 234, "nom": "ARS Océan Indien", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "2 bis avenue Georges Brassens, St Denis, La Réunion", "tel": "02 62 97 90 00", "responsable": "", "lat": -20.882662, "lng": 55.450815}, {"id": 235, "nom": "Association AMARE", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "15 boulevard de Notre Dame de la Trinité, St Denis, La Réunion", "tel": "02 62 30 59 63", "responsable": "", "lat": -20.87601, "lng": 55.441999}, {"id": 236, "nom": "ASSOCIATION FREDERIC LEVASSEUR", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "3 RUE PIERRE AUBERT, St Denis, La Réunion", "tel": "02 62 02 03 02", "responsable": "JONATHAN", "lat": -20.880194, "lng": 55.448697}, {"id": 237, "nom": "Brasseries de Bourbon", "secteur": "Industrie", "commune": "St Denis", "adresse": "60 quai ouest, St Denis, La Réunion", "tel": "02 62 90 22 00", "responsable": "Edwin", "lat": -20.880079, "lng": 55.443996}, {"id": 238, "nom": "Cabinet Infirmiers LAURET Philippe", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "83 rue Ruisseau des Noirs, St Denis, La Réunion", "tel": "", "responsable": "", "lat": -20.880018, "lng": 55.453768}, {"id": 239, "nom": "Caisses Réunionnaises Complémentaires (CRC)", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "2 bis ruelle Pavée, St Denis, La Réunion", "tel": "02 62 90 80 10", "responsable": "", "lat": -20.877723, "lng": 55.450837}, {"id": 240, "nom": "Castel Glacier", "secteur": "Agroalimentaire", "commune": "St Denis", "adresse": "81 rue Jean Chatel, St Denis, La Réunion", "tel": "", "responsable": "Yannick", "lat": -20.873906, "lng": 55.451818}, {"id": 241, "nom": "CCAS St Denis", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "1 rue Pasteur, St Denis, La Réunion", "tel": "", "responsable": "", "lat": -20.880575, "lng": 55.441183}, {"id": 242, "nom": "Centre hospitalier Félix Guyon", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "Allée des Topazes, St Denis, La Réunion", "tel": "", "responsable": "", "lat": -20.880975, "lng": 55.451649}, {"id": 243, "nom": "Charcuterie Viracaoundin", "secteur": "Boucherie / Charcuterie", "commune": "St Denis", "adresse": "57 rue Monthyon, St Denis, La Réunion", "tel": "02 62 41 68 28", "responsable": "Yoland", "lat": -20.873952, "lng": 55.454448}, {"id": 244, "nom": "Cilam", "secteur": "Industrie", "commune": "St Denis", "adresse": "56 quai Ouest, St Denis, La Réunion", "tel": "02 62 90 27 27", "responsable": "Pascal", "lat": -20.880034, "lng": 55.451565}, {"id": 245, "nom": "Cirad", "secteur": "Agroalimentaire", "commune": "St Denis", "adresse": "40 chemin Grand Canal, St Denis, La Réunion", "tel": "02 62 49 27 73", "responsable": "Eric", "lat": -20.878254, "lng": 55.449546}, {"id": 246, "nom": "CISE Réunion", "secteur": "Eau", "commune": "St Denis", "adresse": "Résidence Halley, St Denis, La Réunion", "tel": "02 62 44 39 40", "responsable": "Daniel", "lat": -20.882812, "lng": 55.444172}, {"id": 247, "nom": "Département de la Réunion", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "2 rue de la Source, St Denis, La Réunion", "tel": "", "responsable": "Cyrille", "lat": -20.879798, "lng": 55.441506}, {"id": 248, "nom": "Lycée Bellepierre", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "51 bd Gaston Monnerville, St Denis, La Réunion", "tel": "02 62 90 73 00", "responsable": "", "lat": -20.881194, "lng": 55.450608}, {"id": 249, "nom": "Lycée Lislet Geoffrey", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "8 allée des Etudiants, St Denis, La Réunion", "tel": "02 62 90 72 00", "responsable": "", "lat": -20.88024, "lng": 55.443411}, {"id": 250, "nom": "MGEN Section de la Réunion", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "121 boulevard Jean Jaurès, St Denis, La Réunion", "tel": "08 21 22 19 74", "responsable": "", "lat": -20.879357, "lng": 55.442887}, {"id": 251, "nom": "Office de l'Eau de la Réunion", "secteur": "Eau", "commune": "St Denis", "adresse": "49 rue Mazagran, St Denis, La Réunion", "tel": "02 62 30 84 84", "responsable": "Gilbert", "lat": -20.877188, "lng": 55.441478}, {"id": 252, "nom": "Pharmacie de la Trinité", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "10 avenue Jean-Paul II, St Denis, La Réunion", "tel": "02 62 30 38 88", "responsable": "", "lat": -20.880384, "lng": 55.449001}, {"id": 253, "nom": "REDELECTRICITE", "secteur": "Énergie", "commune": "St Denis", "adresse": "64 ALLEE DES OPALES PAVADE, St Denis, La Réunion", "tel": "06 93 31 92 31", "responsable": "", "lat": -20.885521, "lng": 55.450098}, {"id": 254, "nom": "Union Mutualité Solidarité", "secteur": "Non renseigné", "commune": "St Denis", "adresse": "45 rue Charles Gounod, St Denis, La Réunion", "tel": "02 62 25 80 80", "responsable": "", "lat": -20.884, "lng": 55.447564}, {"id": 255, "nom": "Boulangerie du Lagon Maison St Georges", "secteur": "Boulangerie / Pâtisserie", "commune": "St Leu", "adresse": "208 rue du Général Lambert, St Leu, La Réunion", "tel": "02 62 34 80 87", "responsable": "", "lat": -21.172996, "lng": 55.281607}, {"id": 256, "nom": "Boulangerie-Pâtisserie D.Chong", "secteur": "Boulangerie / Pâtisserie", "commune": "St Leu", "adresse": "239 rue du Général Lambert, St Leu, La Réunion", "tel": "02 62 34 72 02", "responsable": "David", "lat": -21.170737, "lng": 55.280876}, {"id": 257, "nom": "CISE Réunion St Leu", "secteur": "Eau", "commune": "St Leu", "adresse": "49 rue du lagon, St Leu, La Réunion", "tel": "", "responsable": "Thierry", "lat": -21.163043, "lng": 55.281608}, {"id": 258, "nom": "L'île en glace", "secteur": "Non renseigné", "commune": "St Leu", "adresse": "18 chemin Vaudeville, St Leu, La Réunion", "tel": "02 62 54 79 76", "responsable": "Sylvie", "lat": -21.163172, "lng": 55.287947}, {"id": 259, "nom": "CCAS St Louis", "secteur": "Non renseigné", "commune": "St Louis", "adresse": "5 rue Victor Hugo, St Louis, La Réunion", "tel": "02 62 44 44 92", "responsable": "", "lat": -21.270168, "lng": 55.444147}, {"id": 260, "nom": "Chan ou Teung SARL", "secteur": "Agroalimentaire", "commune": "St Louis", "adresse": "12 rue Valmy, St Louis, La Réunion", "tel": "02 62 26 16 60", "responsable": "Patrick", "lat": -21.273429, "lng": 55.450552}, {"id": 261, "nom": "Cilaos SARL", "secteur": "Eau", "commune": "St Louis", "adresse": "12 rue Valmy, St Louis, La Réunion", "tel": "02 62 26 82 42", "responsable": "", "lat": -21.259701, "lng": 55.447899}, {"id": 262, "nom": "CTICS (Laboratoire du Gol)", "secteur": "Non renseigné", "commune": "St Louis", "adresse": "Laboratoire du Gol, St Louis, La Réunion", "tel": "02 62 30 33 44", "responsable": "", "lat": -21.264598, "lng": 55.453937}, {"id": 263, "nom": "EHPAD St Louis", "secteur": "Non renseigné", "commune": "St Louis", "adresse": "15 rue Lambert, St Louis, La Réunion", "tel": "02 62 91 96 10", "responsable": "", "lat": -21.264575, "lng": 55.453559}, {"id": 264, "nom": "Fournil de maître Jean", "secteur": "Boulangerie / Pâtisserie", "commune": "St Louis", "adresse": "142 avenue Principale, St Louis, La Réunion", "tel": "02 62 45 59 83", "responsable": "", "lat": -21.260405, "lng": 55.445791}, {"id": 265, "nom": "L.A.B.M. de St Louis", "secteur": "Non renseigné", "commune": "St Louis", "adresse": "146 avenue Principale, St Louis, La Réunion", "tel": "02 62 26 23 23", "responsable": "", "lat": -21.273415, "lng": 55.445133}, {"id": 266, "nom": "Laboratoire d'analyses médicales", "secteur": "Non renseigné", "commune": "St Louis", "adresse": "ZAC Avenir 15A rue de Chine, St Louis, La Réunion", "tel": "02 62 34 15 57", "responsable": "", "lat": -21.271933, "lng": 55.452372}, {"id": 267, "nom": "Laboratoire du Gol", "secteur": "Non renseigné", "commune": "St Louis", "adresse": "St Louis, La Réunion", "tel": "02 62 30 33 44", "responsable": "", "lat": -21.265804, "lng": 55.446052}, {"id": 268, "nom": "SOREBRA", "secteur": "Industrie", "commune": "St Louis", "adresse": "12 rue Valmy, St Louis, La Réunion", "tel": "02 62 26 82 42", "responsable": "B.", "lat": -21.263907, "lng": 55.453737}, {"id": 269, "nom": "Sucrerie de la Réunion (du Gol)", "secteur": "Industrie", "commune": "St Louis", "adresse": "Le Gol, St Louis, La Réunion", "tel": "02 62 91 28 70", "responsable": "ETIENNE", "lat": -21.271351, "lng": 55.451501}, {"id": 270, "nom": "ANPAA 974", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "Immeuble Cour Savannah, St Paul, La Réunion", "tel": "02 62 30 22 93", "responsable": "ODILE", "lat": -20.979829, "lng": 55.261303}, {"id": 271, "nom": "Boulangerie Au Pain Gourmand", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "22 rue du Commerce, St Paul, La Réunion", "tel": "02 62 45 55 88", "responsable": "", "lat": -20.97883, "lng": 55.273206}, {"id": 272, "nom": "Boulangerie L'Atelier du Pain", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "19 bis chemin Crève Coeur, St Paul, La Réunion", "tel": "02 62 44 20 46", "responsable": "", "lat": -20.988787, "lng": 55.260059}, {"id": 273, "nom": "Boulangerie Le pain frotté", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "8 rue des Cateaux, St Paul, La Réunion", "tel": "02 62 22 91 22", "responsable": "José", "lat": -20.985933, "lng": 55.269183}, {"id": 274, "nom": "Boulangerie Les 3 Epis", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "125 chaussée Royale, St Paul, La Réunion", "tel": "02 62 45 02 35", "responsable": "", "lat": -20.976886, "lng": 55.265253}, {"id": 275, "nom": "Boulangerie-Pâtisserie Au palais d'Or", "secteur": "Boulangerie / Pâtisserie", "commune": "St Paul", "adresse": "10 rue de Suffren, St Paul, La Réunion", "tel": "02 62 45 54 63", "responsable": "Savignan", "lat": -20.98029, "lng": 55.260764}, {"id": 276, "nom": "Cabinet d'infirmière VERBARD Marie-Sylvie", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "301 rue Montrouge, St Paul, La Réunion", "tel": "02 62 38 34 94", "responsable": "", "lat": -20.980631, "lng": 55.268481}, {"id": 277, "nom": "Cabinet d'infirmiers DUMERGUE-LHUILLIER-PRIVAT", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "18 rue Labourdonnais, St Paul, La Réunion", "tel": "02 62 22 60 01", "responsable": "", "lat": -20.988873, "lng": 55.270515}, {"id": 278, "nom": "Cabinet Infirmier Etang", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "402 rue St Louis, St Paul, La Réunion", "tel": "02 62 22 52 59", "responsable": "", "lat": -20.978396, "lng": 55.268106}, {"id": 279, "nom": "CAMSP-ASFA", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "12 rue Jules Thirel, St Paul, La Réunion", "tel": "02 62 22 29 63", "responsable": "", "lat": -20.988605, "lng": 55.273474}, {"id": 280, "nom": "CASTA CHAUSSÉE ROYALE", "secteur": "Boulangerie / Pâtisserie", "commune": "St Paul", "adresse": "317 bis Chaussée Royale, St Paul, La Réunion", "tel": "02 62 35 34 70", "responsable": "Erick", "lat": -20.979343, "lng": 55.264561}, {"id": 281, "nom": "CCAS St Paul", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "19 rue Evariste de Parny, St Paul, La Réunion", "tel": "02 62 45 76 45", "responsable": "Ingrid", "lat": -20.984303, "lng": 55.264888}, {"id": 282, "nom": "Centre hospitalier EPSMR", "secteur": "Médical / Santé", "commune": "St Paul", "adresse": "11 rue de l'hôpital, St Paul, La Réunion", "tel": "", "responsable": "", "lat": -20.983217, "lng": 55.264477}, {"id": 283, "nom": "Centre Hospitalier Gabriel Martin", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "38 rue Labourdonnais, St Paul, La Réunion", "tel": "02 62 45 30 30", "responsable": "", "lat": -20.978406, "lng": 55.271213}, {"id": 284, "nom": "CGSS SAINT PAUL", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "Angle rue de la buse, St Paul, La Réunion", "tel": "02 62 40 36 57", "responsable": "jacky", "lat": -20.988822, "lng": 55.273151}, {"id": 285, "nom": "Charcuterie Murcy", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "46 rue Leconte Delisle, St Paul, La Réunion", "tel": "", "responsable": "", "lat": -20.981402, "lng": 55.271302}, {"id": 286, "nom": "CISE Réunion-Ouest-St Paul", "secteur": "Eau", "commune": "St Paul", "adresse": "159 chemin Combavas, St Paul, La Réunion", "tel": "", "responsable": "", "lat": -20.980398, "lng": 55.265797}, {"id": 287, "nom": "Comité Tutélaire Croix Marine St Paul", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "35 route des Premiers Français, St Paul, La Réunion", "tel": "02 62 45 60 27", "responsable": "", "lat": -20.980027, "lng": 55.273217}, {"id": 288, "nom": "EPSMR", "secteur": "Médical / Santé", "commune": "St Paul", "adresse": "Chemin du grand pourpier, St Paul, La Réunion", "tel": "02 62 45 35 45", "responsable": "LAURENT", "lat": -20.986519, "lng": 55.271015}, {"id": 289, "nom": "FDGDON Réunion", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "23 rue Jules Thirel, St Paul, La Réunion", "tel": "02 62 45 20 00", "responsable": "", "lat": -20.982766, "lng": 55.266469}, {"id": 290, "nom": "IDES", "secteur": "Médical / Santé", "commune": "St Paul", "adresse": "92 rue Raphaël Barquisseau, St Paul, La Réunion", "tel": "02 62 55 69 70", "responsable": "Ambre", "lat": -20.984202, "lng": 55.269934}, {"id": 291, "nom": "Jardin d'enfants Farandole", "secteur": "Petite enfance", "commune": "St Paul", "adresse": "46 bis chaussée royale, St Paul, La Réunion", "tel": "02 62 22 50 40", "responsable": "", "lat": -20.986542, "lng": 55.271624}, {"id": 292, "nom": "Jumbo score Savanna", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "Route de Savanna, St Paul, La Réunion", "tel": "02 62 45 63 45", "responsable": "LOUIS", "lat": -20.97867, "lng": 55.260913}, {"id": 293, "nom": "La Créole", "secteur": "Eau", "commune": "St Paul", "adresse": "8 route de Savannah, St Paul, La Réunion", "tel": "02 62 32 00 00", "responsable": "Christian", "lat": -20.977957, "lng": 55.263114}, {"id": 294, "nom": "La créole des eaux St Paul", "secteur": "Eau", "commune": "St Paul", "adresse": "14 rue Jules Thirel, St Paul, La Réunion", "tel": "02 62 32 00 00", "responsable": "Francois", "lat": -20.983794, "lng": 55.268245}, {"id": 295, "nom": "Laboratoire St Paul", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "11 rue Sarda Garriga, St Paul, La Réunion", "tel": "02 62 22 51 90", "responsable": "", "lat": -20.984994, "lng": 55.260102}, {"id": 296, "nom": "Le Glacier Moderne (LGM)", "secteur": "Boulangerie / Pâtisserie", "commune": "St Paul", "adresse": "5 rue Marius et ary Leblond, St Paul, La Réunion", "tel": "02 62 45 61 66", "responsable": "", "lat": -20.978387, "lng": 55.262246}, {"id": 297, "nom": "Lycée Evariste de Parny", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "Rue Auguste Vinson, St Paul, La Réunion", "tel": "02 62 55 46 56", "responsable": "", "lat": -20.98733, "lng": 55.27087}, {"id": 298, "nom": "Mairie de Saint-Paul", "secteur": "Collectivité", "commune": "St Paul", "adresse": "CS 51015, St Paul, La Réunion", "tel": "02 62 45 37 50", "responsable": "", "lat": -20.985535, "lng": 55.272024}, {"id": 299, "nom": "MULTI ACCUEIL LES COMBAVAS", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "48 Bis Rue des Flamboyants, St Paul, La Réunion", "tel": "02 62 44 01 24", "responsable": "", "lat": -20.980483, "lng": 55.263568}, {"id": 300, "nom": "PetFood Run", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "ZI de Cambaie, St Paul, La Réunion", "tel": "02 62 45 37 10", "responsable": "CLAUDE", "lat": -20.990158, "lng": 55.272973}, {"id": 301, "nom": "Pharmacie de la Gare", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "72 rue Marius et Ary LEBLOND, St Paul, La Réunion", "tel": "02 62 22 52 52", "responsable": "", "lat": -20.989101, "lng": 55.269781}, {"id": 302, "nom": "Piscine de Plateau Caillou", "secteur": "Maintenance / Énergie", "commune": "St Paul", "adresse": "57 rue Gabriel Guisthau, St Paul, La Réunion", "tel": "02 62 45 43 45", "responsable": "Emmanuel", "lat": -20.98346, "lng": 55.270314}, {"id": 303, "nom": "Piscine municipale de St Paul", "secteur": "Maintenance / Énergie", "commune": "St Paul", "adresse": "43 boulevard du Front de mer, St Paul, La Réunion", "tel": "02 62 45 43 45", "responsable": "", "lat": -20.980631, "lng": 55.268743}, {"id": 304, "nom": "Reunilab St Paul", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "11 rue Sarda Garriga, St Paul, La Réunion", "tel": "02 62 22 51 90", "responsable": "", "lat": -20.983429, "lng": 55.270801}, {"id": 305, "nom": "Sun 7", "secteur": "Maintenance / Énergie", "commune": "St Paul", "adresse": "33 route de Cambaie, St Paul, La Réunion", "tel": "02 62 45 26 92", "responsable": "", "lat": -20.988997, "lng": 55.262802}, {"id": 306, "nom": "Urcoopa", "secteur": "Industrie", "commune": "St Paul", "adresse": "ZI de Cambaie, St Paul, La Réunion", "tel": "02 62 45 37 10", "responsable": "JOCELYNE", "lat": -20.980615, "lng": 55.263987}, {"id": 307, "nom": "West Biologie", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "11 rue Sarda Garriga, St Paul, La Réunion", "tel": "02 62 22 51 90", "responsable": "", "lat": -20.982158, "lng": 55.266326}, {"id": 308, "nom": "ARIAL", "secteur": "Non renseigné", "commune": "St Pierre", "adresse": "chez CILAM, St Pierre, La Réunion", "tel": "02 62 96 98 33", "responsable": "", "lat": -21.332867, "lng": 55.482257}, {"id": 309, "nom": "Bons Enfants Traiteur", "secteur": "Restauration", "commune": "St Pierre", "adresse": "6 avenue de la croix du sud, St Pierre, La Réunion", "tel": "06 92 60 25 71", "responsable": "Giovanni", "lat": -21.329857, "lng": 55.480931}, {"id": 310, "nom": "Boulangerie La Mie Kréol", "secteur": "Non renseigné", "commune": "St Pierre", "adresse": "13 rue Désiré Barquisseau, St Pierre, La Réunion", "tel": "", "responsable": "", "lat": -21.33046, "lng": 55.480093}, {"id": 311, "nom": "Boulangerie WEIL", "secteur": "Boulangerie / Pâtisserie", "commune": "St Pierre", "adresse": "1 rue des Bons Enfants, St Pierre, La Réunion", "tel": "", "responsable": "", "lat": -21.33678, "lng": 55.477989}, {"id": 312, "nom": "CAF St Pierre", "secteur": "Non renseigné", "commune": "St Pierre", "adresse": "3 rue François Isautier, St Pierre, La Réunion", "tel": "08 10 25 97 40", "responsable": "", "lat": -21.337604, "lng": 55.477974}, {"id": 313, "nom": "CCAS de St Pierre", "secteur": "Non renseigné", "commune": "St Pierre", "adresse": "2 rue de la Gendarmerie, St Pierre, La Réunion", "tel": "02 62 25 31 16", "responsable": "", "lat": -21.332798, "lng": 55.486971}, {"id": 314, "nom": "CHR de la Réunion-GHSR", "secteur": "Médical / Santé", "commune": "St Pierre", "adresse": "BP 350, St Pierre, La Réunion", "tel": "02 62 35 90 00", "responsable": "", "lat": -21.337708, "lng": 55.479329}, {"id": 315, "nom": "CILAM Saint-Pierre", "secteur": "Industrie", "commune": "St Pierre", "adresse": "ZI n°2, St Pierre, La Réunion", "tel": "02 62 96 12 12", "responsable": "", "lat": -21.333521, "lng": 55.486444}, {"id": 316, "nom": "COGEDAL", "secteur": "Industrie", "commune": "St Pierre", "adresse": "BP 188, St Pierre, La Réunion", "tel": "02 62 96 16 56", "responsable": "Nicolas", "lat": -21.326628, "lng": 55.483645}, {"id": 317, "nom": "Fromagerie de Bourbon", "secteur": "Agroalimentaire", "commune": "St Pierre", "adresse": "ZI n°2, St Pierre, La Réunion", "tel": "02 62 90 27 27", "responsable": "Pascal", "lat": -21.336338, "lng": 55.477707}, {"id": 318, "nom": "Jumbo Grand Large St Pierre", "secteur": "Non renseigné", "commune": "St Pierre", "adresse": "Rue de la Poudrière, St Pierre, La Réunion", "tel": "02 62 35 15 16", "responsable": "", "lat": -21.337582, "lng": 55.479485}, {"id": 319, "nom": "Lycée Ambroise Vollard", "secteur": "Non renseigné", "commune": "St Pierre", "adresse": "3 avenue de Soweto, St Pierre, La Réunion", "tel": "02 62 96 23 50", "responsable": "", "lat": -21.337788, "lng": 55.476498}, {"id": 320, "nom": "Piscine Casabona St Pierre", "secteur": "Maintenance / Énergie", "commune": "St Pierre", "adresse": "Mairie de St Pierre, St Pierre, La Réunion", "tel": "02 62 96 99 50", "responsable": "Christophe", "lat": -21.332822, "lng": 55.48014}, {"id": 321, "nom": "Rhums et punchs Isautier", "secteur": "Industrie", "commune": "St Pierre", "adresse": "5 allée des Artisans, St Pierre, La Réunion", "tel": "02 62 96 11 96", "responsable": "", "lat": -21.32666, "lng": 55.484047}, {"id": 322, "nom": "SAPHIR", "secteur": "Eau", "commune": "St Pierre", "adresse": "4 route Ligne Paradis, St Pierre, La Réunion", "tel": "02 62 96 19 20", "responsable": "Philippe", "lat": -21.330536, "lng": 55.478068}, {"id": 323, "nom": "SICABAT", "secteur": "Non renseigné", "commune": "St Pierre", "adresse": "5 avenue Charles Isautier, St Pierre, La Réunion", "tel": "02 62 35 71 40", "responsable": "", "lat": -21.328142, "lng": 55.483172}, {"id": 324, "nom": "ADELIS", "secteur": "Agroalimentaire", "commune": "Ste Clotilde", "adresse": "2 rue Edouard Manés, Ste Clotilde, La Réunion", "tel": "02 62 28 18 60", "responsable": "", "lat": -20.878082, "lng": 55.501037}, {"id": 325, "nom": "ADELIS LES GLACIERS REUNIS", "secteur": "Agroalimentaire", "commune": "Ste Clotilde", "adresse": "2 rue Edouard Manés, Ste Clotilde, La Réunion", "tel": "02 62 28 18 60", "responsable": "FRANCOIS", "lat": -20.883728, "lng": 55.499167}, {"id": 326, "nom": "CSAPA NORD", "secteur": "Non renseigné", "commune": "Ste Clotilde", "adresse": "45 Avenue Leconte Delisle, Ste Clotilde, La Réunion", "tel": "02 62 30 11 31", "responsable": "Christophe", "lat": -20.887719, "lng": 55.493719}, {"id": 327, "nom": "LA CASE A PAINS", "secteur": "Non renseigné", "commune": "Ste Clotilde", "adresse": "19 route de Moufia, Ste Clotilde, La Réunion", "tel": "06 92 38 74 80", "responsable": "EMMANUEL", "lat": -20.877125, "lng": 55.499688}, {"id": 328, "nom": "Observatoire Réunionnais de l'Air", "secteur": "Non renseigné", "commune": "Ste Clotilde", "adresse": "5 rue Henri Cornu, Ste Clotilde, La Réunion", "tel": "02 62 28 39 40", "responsable": "", "lat": -20.87879, "lng": 55.49861}, {"id": 329, "nom": "CCAS Ste Marie", "secteur": "Non renseigné", "commune": "Ste Marie", "adresse": "96 rue R. Payet, Ste Marie, La Réunion", "tel": "02 62 90 20 22", "responsable": "", "lat": -20.889263, "lng": 55.535112}, {"id": 330, "nom": "CISE Réunion-Ste Marie", "secteur": "Eau", "commune": "Ste Marie", "adresse": "33 rue Montée des Veuves, Ste Marie, La Réunion", "tel": "", "responsable": "", "lat": -20.889549, "lng": 55.528389}, {"id": 331, "nom": "Coco Cannelle", "secteur": "Non renseigné", "commune": "Ste Marie", "adresse": "ZAE La Mare, Ste Marie, La Réunion", "tel": "02 62 24 48 60", "responsable": "", "lat": -20.88242, "lng": 55.530554}, {"id": 332, "nom": "Collège Adrien Cerneau", "secteur": "Non renseigné", "commune": "Ste Marie", "adresse": "1 rue Noël Tessier, Ste Marie, La Réunion", "tel": "02 62 53 40 54", "responsable": "", "lat": -20.876385, "lng": 55.527958}, {"id": 333, "nom": "Cuisine centrale de Beauséjour", "secteur": "Non renseigné", "commune": "Ste Marie", "adresse": "3 rue de la République, Ste Marie, La Réunion", "tel": "02 62 73 59 60", "responsable": "", "lat": -20.879598, "lng": 55.534788}, {"id": 334, "nom": "Groupama Assurances", "secteur": "Non renseigné", "commune": "Ste Marie", "adresse": "28 montée des Veuves, Ste Marie, La Réunion", "tel": "02 62 90 85 45", "responsable": "", "lat": -20.87923, "lng": 55.52946}, {"id": 335, "nom": "Piscine de Ste Marie", "secteur": "Maintenance / Énergie", "commune": "Ste Marie", "adresse": "16 rue du Frère Suisilion, Ste Marie, La Réunion", "tel": "02 62 53 05 00", "responsable": "", "lat": -20.882984, "lng": 55.532607}, {"id": 336, "nom": "SAS MARAICHERS", "secteur": "Non renseigné", "commune": "Ste Marie", "adresse": "48 RUE DE LA PEPINIERE, Ste Marie, La Réunion", "tel": "06 92 52 83 72", "responsable": "GREGORY", "lat": -20.884102, "lng": 55.538342}, {"id": 337, "nom": "Société Industrielle du Nord", "secteur": "Boulangerie / Pâtisserie", "commune": "Ste Marie", "adresse": "ZA La mare, Ste Marie, La Réunion", "tel": "02 62 53 28 28", "responsable": "", "lat": -20.87644, "lng": 55.530575}, {"id": 338, "nom": "SRTB", "secteur": "Plomberie", "commune": "Ste Marie", "adresse": "22 avenue du Domaine Azur, Ste Marie, La Réunion", "tel": "02 62 88 68 68", "responsable": "", "lat": -20.881606, "lng": 55.534835}, {"id": 339, "nom": "Bionord Eurl", "secteur": "Non renseigné", "commune": "Ste Suzanne", "adresse": "22 rond-point des Métiers, Ste Suzanne, La Réunion", "tel": "", "responsable": "", "lat": -20.913339, "lng": 55.606266}, {"id": 340, "nom": "CCAS de Ste Suzanne", "secteur": "Non renseigné", "commune": "Ste Suzanne", "adresse": "1 rue Isnelle Amelin, Ste Suzanne, La Réunion", "tel": "02 62 98 06 06", "responsable": "", "lat": -20.920791, "lng": 55.595954}, {"id": 341, "nom": "BOYER EXPLOITATION AGRICOLE", "secteur": "Eau", "commune": "St Gilles les Bains", "adresse": "RUE DU GRAND HOTEL, St Gilles les Bains, La Réunion", "tel": "06 92 68 58 24", "responsable": "jean-charles", "lat": -21.047754, "lng": 55.228499}, {"id": 342, "nom": "CHEZ LOULOU PFMP 2ND", "secteur": "Boulangerie / Pâtisserie", "commune": "St Gilles les Bains", "adresse": "86 rue Général de GAULLE, St Gilles les Bains, La Réunion", "tel": "02 62 24 40 41", "responsable": "Philippe", "lat": -21.054567, "lng": 55.227351}, {"id": 343, "nom": "HOTEL LE RECIF", "secteur": "Non renseigné", "commune": "St Gilles les Bains", "adresse": "50 AVENUE DE BOURBON, St Gilles les Bains, La Réunion", "tel": "02 62 70 00 10", "responsable": "Laurent", "lat": -21.056963, "lng": 55.232607}, {"id": 344, "nom": "KER METIS", "secteur": "Non renseigné", "commune": "St Gilles les Bains", "adresse": "23 Rue bassin masoute, St Gilles les Bains, La Réunion", "tel": "06 92 75 94 35", "responsable": "", "lat": -21.048687, "lng": 55.230378}, {"id": 345, "nom": "LE COMPTOIR DES VIANDES", "secteur": "Boucherie / Charcuterie", "commune": "St Gilles les Bains", "adresse": "59 avenue de l'Anse Local C2, St Gilles les Bains, La Réunion", "tel": "06 92 53 56 72", "responsable": "Fabien", "lat": -21.053759, "lng": 55.236197}, {"id": 346, "nom": "UN MONDE METIS", "secteur": "Agroalimentaire", "commune": "St Gilles les Bains", "adresse": "23 rue Bassin Massoute, St Gilles les Bains, La Réunion", "tel": "02 62 78 94 75", "responsable": "Philippe", "lat": -21.047158, "lng": 55.232656}, {"id": 347, "nom": "AAPEJ-SIE/RP", "secteur": "Non renseigné", "commune": "St Gilles les Hauts", "adresse": "35 ter chemin Tamatave, St Gilles les Hauts, La Réunion", "tel": "02 62 91 59 47", "responsable": "Frédéric", "lat": -21.064077, "lng": 55.272635}, {"id": 348, "nom": "BRL INGENIERIE", "secteur": "Bureau d'études", "commune": "St Gilles les Hauts", "adresse": "1105 AVENUE PIERRE MENDES FRANCE, St Gilles les Hauts, La Réunion", "tel": "04 66 87 50 00", "responsable": "FABRICE", "lat": -21.06267, "lng": 55.268451}, {"id": 349, "nom": "CLINIQUE MAISON DES OLIVIERS", "secteur": "Divers", "commune": "St Gilles les Hauts", "adresse": "BP 15 - 29 RUE JOSEPH HUBERT, St Gilles les Hauts, La Réunion", "tel": "02 62 55 41 41", "responsable": "THIERRY", "lat": -21.064443, "lng": 55.272771}, {"id": 350, "nom": "EURL SUCRE FARINE", "secteur": "Boulangerie / Pâtisserie", "commune": "St Gilles les Hauts", "adresse": "41 rue Joseph Hubert, St Gilles les Hauts, La Réunion", "tel": "02 62 71 59 55", "responsable": "", "lat": -21.067748, "lng": 55.267324}, {"id": 351, "nom": "PAIN ET FOLIES SAS", "secteur": "Boulangerie / Pâtisserie", "commune": "St Gilles les Hauts", "adresse": "86 rue Joseph Hubert, St Gilles les Hauts, La Réunion", "tel": "06 42 77 68 66", "responsable": "", "lat": -21.064633, "lng": 55.272418}, {"id": 352, "nom": "SD EPERON", "secteur": "Non renseigné", "commune": "St Gilles les Hauts", "adresse": "25 rue d'eden, St Gilles les Hauts, La Réunion", "tel": "02 62 38 08 08", "responsable": "DAVID", "lat": -21.062127, "lng": 55.2607}, {"id": 353, "nom": "Cabinet Infirmiers Da-Costa Damour Folgoat Vitry", "secteur": "Non renseigné", "commune": "St André", "adresse": "250 allée Zelmar, St André, La Réunion", "tel": "", "responsable": "", "lat": -20.971377, "lng": 55.647307}, {"id": 354, "nom": "Centre Addictologie St André (CSAPA Est)", "secteur": "Non renseigné", "commune": "St André", "adresse": "404 avenue Ile de France, St André, La Réunion", "tel": "02 62 50 39 09", "responsable": "", "lat": -20.963215, "lng": 55.650969}, {"id": 355, "nom": "L.A.B.M. de Cambuston", "secteur": "Non renseigné", "commune": "St André", "adresse": "475 route de Cambuston, St André, La Réunion", "tel": "", "responsable": "", "lat": -20.969659, "lng": 55.644741}, {"id": 356, "nom": "Piscine de St André", "secteur": "Maintenance / Énergie", "commune": "St André", "adresse": "Rue Communauté, St André, La Réunion", "tel": "02 62 58 88 88", "responsable": "", "lat": -20.964059, "lng": 55.652796}, {"id": 357, "nom": "Aquarium de La Réunion", "secteur": "Eau", "commune": "St Gilles les Bains", "adresse": "Port de Plaisance, St Gilles les Bains, La Réunion", "tel": "02 62 33 44 00", "responsable": "", "lat": -21.043803, "lng": 55.233307}, {"id": 358, "nom": "AURAR", "secteur": "Non renseigné", "commune": "St Gilles les Bains", "adresse": "73 rue des Navigateurs, St Gilles les Bains, La Réunion", "tel": "02 62 45 76 10", "responsable": "", "lat": -21.050087, "lng": 55.227426}, {"id": 359, "nom": "Boulangerie Le relais gourmand salsa des pains", "secteur": "Non renseigné", "commune": "St Gilles les Bains", "adresse": "1 rue des Anones, St Gilles les Bains, La Réunion", "tel": "", "responsable": "", "lat": -21.056442, "lng": 55.232348}, {"id": 360, "nom": "Boulangerie-Pâtisserie Chez Loulou", "secteur": "Non renseigné", "commune": "St Gilles les Bains", "adresse": "86 rue du Général de Gaulle, St Gilles les Bains, La Réunion", "tel": "02 62 24 40 41", "responsable": "", "lat": -21.052487, "lng": 55.229805}, {"id": 361, "nom": "Massila Clim System", "secteur": "Énergie", "commune": "St Gilles les Bains", "adresse": "40 avenue de la Grande Ourse, St Gilles les Bains, La Réunion", "tel": "06 92 87 72 04", "responsable": "", "lat": -21.055721, "lng": 55.239767}, {"id": 362, "nom": "Pharmacie de l'Océan", "secteur": "Non renseigné", "commune": "St Gilles les Bains", "adresse": "105 rue du Général de Gaulle, St Gilles les Bains, La Réunion", "tel": "02 62 24 45 49", "responsable": "", "lat": -21.045297, "lng": 55.234353}, {"id": 363, "nom": "Pharmacie de Roquefeuil", "secteur": "Non renseigné", "commune": "St Gilles les Bains", "adresse": "11 avenue de la Grande Ourse, St Gilles les Bains, La Réunion", "tel": "02 62 33 20 24", "responsable": "", "lat": -21.043689, "lng": 55.240294}, {"id": 364, "nom": "SAS Gestion Apolonia", "secteur": "Non renseigné", "commune": "St Gilles les Bains", "adresse": "48 avenue du Capricorne, St Gilles les Bains, La Réunion", "tel": "02 62 44 44 00", "responsable": "CHRISTOPHE", "lat": -21.047588, "lng": 55.230073}, {"id": 365, "nom": "Score St Gilles", "secteur": "Grande distribution", "commune": "St Gilles les Bains", "adresse": "Les Filaos, St Gilles les Bains, La Réunion", "tel": "02 62 24 58 71", "responsable": "", "lat": -21.056437, "lng": 55.236888}, {"id": 366, "nom": "ALCOM", "secteur": "Non renseigné", "commune": "St Gilles les Hauts", "adresse": "4 chemin Trou de sable, St Gilles les Hauts, La Réunion", "tel": "02 62 57 39 85", "responsable": "", "lat": -21.067113, "lng": 55.268821}, {"id": 367, "nom": "Boulangerie Casta St Gilles les Hauts", "secteur": "Non renseigné", "commune": "St Gilles les Hauts", "adresse": "41 rue Joseph Hubert, St Gilles les Hauts, La Réunion", "tel": "02 62 71 59 55", "responsable": "", "lat": -21.060875, "lng": 55.262241}, {"id": 368, "nom": "Boulangerie ALCOM (Taïlou)", "secteur": "Boulangerie / Pâtisserie", "commune": "St Gilles les Hauts", "adresse": "4 chemin trou de sable, St Gilles les Hauts, La Réunion", "tel": "02 62 57 39 85", "responsable": "Victorine", "lat": -21.065505, "lng": 55.268587}, {"id": 369, "nom": "Boulangerie-Pâtisserie Leong Peter", "secteur": "Boulangerie / Pâtisserie", "commune": "St Gilles les Hauts", "adresse": "21 chemin des Violettes, St Gilles les Hauts, La Réunion", "tel": "02 62 22 72 74", "responsable": "", "lat": -21.066816, "lng": 55.260977}, {"id": 370, "nom": "Cabinet d'infirmiers CHEVIRON-LEBOSQ", "secteur": "Non renseigné", "commune": "St Gilles les Hauts", "adresse": "48 chemin de la Bretelle, St Gilles les Hauts, La Réunion", "tel": "02 62 32 74 54", "responsable": "", "lat": -21.068829, "lng": 55.264366}, {"id": 371, "nom": "Cabinet Infirmier DEVEAUX Isabelle", "secteur": "Non renseigné", "commune": "St Gilles les Hauts", "adresse": "24 bis rue Joseph Hubert, St Gilles les Hauts, La Réunion", "tel": "", "responsable": "", "lat": -21.064318, "lng": 55.271708}, {"id": 372, "nom": "Charcuterie Séraphin", "secteur": "Non renseigné", "commune": "St Gilles les Hauts", "adresse": "9 rue de l'Eglise, St Gilles les Hauts, La Réunion", "tel": "02 62 22 72 71", "responsable": "", "lat": -21.069083, "lng": 55.269411}, {"id": 373, "nom": "Institut Robert DEBRE", "secteur": "Non renseigné", "commune": "St Gilles les Hauts", "adresse": "18 impasse des Oliviers, St Gilles les Hauts, La Réunion", "tel": "02 62 59 37 37", "responsable": "", "lat": -21.069665, "lng": 55.272933}, {"id": 374, "nom": "LA CRAMBOISSIENNE", "secteur": "Boulangerie / Pâtisserie", "commune": "St Gilles les Hauts", "adresse": "42 BIS CHEMIN Joseph HUBERT, St Gilles les Hauts, La Réunion", "tel": "06 93 40 33 32", "responsable": "", "lat": -21.06231, "lng": 55.267401}, {"id": 375, "nom": "M.A.S. Annie Gauci", "secteur": "Non renseigné", "commune": "St Gilles les Hauts", "adresse": "72 chemin Saulnier, St Gilles les Hauts, La Réunion", "tel": "02 62 42 34 34", "responsable": "Jerry", "lat": -21.067332, "lng": 55.264103}, {"id": 376, "nom": "Run'essence", "secteur": "Non renseigné", "commune": "St Gilles les Hauts", "adresse": "15 ruelle des Fraisiers, St Gilles les Hauts, La Réunion", "tel": "02 62 22 96 54", "responsable": "Steven", "lat": -21.069174, "lng": 55.273283}, {"id": 377, "nom": "Tradition974", "secteur": "Non renseigné", "commune": "St Gilles les Hauts", "adresse": "5 impasse des Manioc, St Gilles les Hauts, La Réunion", "tel": "06 92 75 81 28", "responsable": "Cédric", "lat": -21.068042, "lng": 55.266904}, {"id": 378, "nom": "Association Allons Deor", "secteur": "Non renseigné", "commune": "St Paul", "adresse": "42 chemin du Grand Pourpier, St Paul, La Réunion", "tel": "02 62 59 02 64", "responsable": "", "lat": -20.976466, "lng": 55.268907}, {"id": 379, "nom": "Boulangerie Le fournil de St Paul Antonin", "secteur": "Boulangerie / Pâtisserie", "commune": "St Paul", "adresse": "46 rue chaussée Royale, St Paul, La Réunion", "tel": "02 62 55 71 20", "responsable": "Jean-Michel", "lat": -20.982704, "lng": 55.265485}, {"id": 380, "nom": "Boulangerie-Pâtisserie La Sainte Annoise", "secteur": "Non renseigné", "commune": "Ste Anne", "adresse": "148 RN 2, Ste Anne, La Réunion", "tel": "02 62 51 38 49", "responsable": "", "lat": -21.121074, "lng": 55.648065}, {"id": 381, "nom": "Association Soins à domicile Réunion", "secteur": "Médical / Santé", "commune": "Ste Clotilde", "adresse": "Route du Bois de Nèfles, Ste Clotilde, La Réunion", "tel": "02 62 71 97 50", "responsable": "Eric", "lat": -20.87971, "lng": 55.501756}, {"id": 382, "nom": "Bionostic Ste Clotilde", "secteur": "Non renseigné", "commune": "Ste Clotilde", "adresse": "58 avenue Leconte Delisle, Ste Clotilde, La Réunion", "tel": "", "responsable": "", "lat": -20.87966, "lng": 55.49585}, {"id": 383, "nom": "Cabinet d'Infirmiers GILLOUX / CARPIN", "secteur": "Non renseigné", "commune": "Ste Clotilde", "adresse": "4 rue des Corsaires, Ste Clotilde, La Réunion", "tel": "02 62 28 27 48", "responsable": "", "lat": -20.882611, "lng": 55.505987}, {"id": 384, "nom": "Carrefour Ste Clotilde", "secteur": "Grande distribution", "commune": "Ste Clotilde", "adresse": "Centre commercial, Ste Clotilde, La Réunion", "tel": "02 62 29 09 09", "responsable": "", "lat": -20.884166, "lng": 55.502776}, {"id": 385, "nom": "Clinique Ste Clotilde", "secteur": "Médical / Santé", "commune": "Ste Clotilde", "adresse": "127 route de Bois de Nèfles, Ste Clotilde, La Réunion", "tel": "02 62 48 20 20", "responsable": "LUC", "lat": -20.8886, "lng": 55.506624}, {"id": 386, "nom": "CYROI Unité Analytique", "secteur": "Analyse / Labo", "commune": "Ste Clotilde", "adresse": "2 rue Maxime Rivière, Ste Clotilde, La Réunion", "tel": "02 62 93 88 00", "responsable": "CHRISTIAN", "lat": -20.881776, "lng": 55.49635}, {"id": 387, "nom": "INSERM Unité de recherche 1188", "secteur": "Non renseigné", "commune": "Ste Clotilde", "adresse": "CYROI, Ste Clotilde, La Réunion", "tel": "02 62 93 88 11", "responsable": "", "lat": -20.888083, "lng": 55.500712}, {"id": 388, "nom": "L.A.B.M. de Ste Clotilde", "secteur": "Non renseigné", "commune": "Ste Clotilde", "adresse": "2 rue Bridet, Ste Clotilde, La Réunion", "tel": "", "responsable": "", "lat": -20.882568, "lng": 55.494305}, {"id": 389, "nom": "Laboratoire CERBALLIANCE", "secteur": "Non renseigné", "commune": "Ste Clotilde", "adresse": "2 rue de La Clinique, Ste Clotilde, La Réunion", "tel": "02 62 40 51 00", "responsable": "", "lat": -20.876408, "lng": 55.505781}, {"id": 390, "nom": "Laboratoire vétérinaire départemental", "secteur": "Non renseigné", "commune": "Ste Clotilde", "adresse": "14 rue Stade de l'Est, Ste Clotilde, La Réunion", "tel": "02 62 90 30 30", "responsable": "Cyrille", "lat": -20.88384, "lng": 55.494645}, {"id": 391, "nom": "Leclerc Ste Clotilde", "secteur": "Grande distribution", "commune": "Ste Clotilde", "adresse": "2 avenue de Lattre de Tassigny, Ste Clotilde, La Réunion", "tel": "02 62 21 99 25", "responsable": "Gilles", "lat": -20.87865, "lng": 55.499977}, {"id": 392, "nom": "Lycée Georges Brassens", "secteur": "Non renseigné", "commune": "Ste Clotilde", "adresse": "16 avenue Georges Brassens, Ste Clotilde, La Réunion", "tel": "", "responsable": "", "lat": -20.880268, "lng": 55.500124}, {"id": 393, "nom": "NOVESCIA Ste Clotilde", "secteur": "Non renseigné", "commune": "Ste Clotilde", "adresse": "2 rue de la clinique, Ste Clotilde, La Réunion", "tel": "02 62 40 51 00", "responsable": "", "lat": -20.886472, "lng": 55.504686}, {"id": 394, "nom": "Reunilab Ste Clotilde", "secteur": "Non renseigné", "commune": "Ste Clotilde", "adresse": "58 avenue Leconte Delisle, Ste Clotilde, La Réunion", "tel": "02 62 28 51 84", "responsable": "", "lat": -20.876577, "lng": 55.496412}, {"id": 395, "nom": "Soleil Réunion", "secteur": "Non renseigné", "commune": "Ste Clotilde", "adresse": "14 rue de la Guadeloupe, Ste Clotilde, La Réunion", "tel": "02 62 92 10 43", "responsable": "GERARD", "lat": -20.882582, "lng": 55.49837}, {"id": 396, "nom": "CCAS Trois Bassins", "secteur": "Non renseigné", "commune": "Trois Bassins", "adresse": "2 rue du Général de Gaulle, Trois Bassins, La Réunion", "tel": "02 62 24 80 03", "responsable": "", "lat": -21.110794, "lng": 55.300115}, {"id": 397, "nom": "JEM'S ELECTRIK", "secteur": "Non renseigné", "commune": "Trois Bassins", "adresse": "500 CHEMIN ARMANETTE, Trois Bassins, La Réunion", "tel": "06 92 87 97 76", "responsable": "François-Joël", "lat": -21.111389, "lng": 55.305096}, {"id": 398, "nom": "Lycée de Trois Bassins", "secteur": "Non renseigné", "commune": "Trois Bassins", "adresse": "81 rue Georges Brassens, Trois Bassins, La Réunion", "tel": "", "responsable": "", "lat": -21.119833, "lng": 55.30406}, {"id": 399, "nom": "STEFF GLACIER Eurl", "secteur": "Boulangerie / Pâtisserie", "commune": "Trois Bassins", "adresse": "26/28 Chemin Justin Raux, Trois Bassins, La Réunion", "tel": "02 62 01 00 01", "responsable": "", "lat": -21.117891, "lng": 55.306079}];
+const EMOJIS  = {"Médical / Santé": "🩺", "Boulangerie / Pâtisserie": "🥖", "Boucherie / Charcuterie": "🥩", "Agroalimentaire": "🌾", "Restauration": "🍽️", "Travaux publics": "🏗️", "Bureau d'études": "📐", "Chimie": "⚗️", "Eau": "💧", "Énergie": "⚡", "Maintenance / Énergie": "🔧", "Industrie": "🏭", "Analyse / Labo": "🔬", "Grande distribution": "🛒", "Collectivité": "🏛️", "Petite enfance": "👶", "Déchets / Environnement": "♻️", "Imprimerie": "🖨️", "Plomberie": "🚿", "Divers": "🏢", "Non renseigné": "🏢"};
+const COLORS  = {"Médical / Santé": "#e53e3e", "Boulangerie / Pâtisserie": "#d69e2e", "Boucherie / Charcuterie": "#c05621", "Agroalimentaire": "#38a169", "Restauration": "#dd6b20", "Travaux publics": "#744210", "Bureau d'études": "#2b6cb0", "Chimie": "#553c9a", "Eau": "#2c7a7b", "Énergie": "#b7791f", "Maintenance / Énergie": "#2d3748", "Industrie": "#4a5568", "Analyse / Labo": "#805ad5", "Grande distribution": "#2b6cb0", "Collectivité": "#1a3a5c", "Petite enfance": "#d53f8c", "Déchets / Environnement": "#276749", "Imprimerie": "#1a365d", "Plomberie": "#2c5282", "Divers": "#718096", "Non renseigné": "#718096"};
+const SECTEURS= ["Agroalimentaire", "Analyse / Labo", "Boucherie / Charcuterie", "Boulangerie / Pâtisserie", "Bureau d'études", "Chimie", "Collectivité", "Divers", "Déchets / Environnement", "Eau", "Grande distribution", "Imprimerie", "Industrie", "Maintenance / Énergie", "Médical / Santé", "Non renseigné", "Petite enfance", "Plomberie", "Restauration", "Travaux publics", "Énergie"];
+const COMMUNES= ["St Paul", "Le Port", "St Denis", "La Possession", "St Gilles les Hauts", "Ste Clotilde", "St Louis", "St Pierre", "St Gilles les Bains", "Ste Marie", "Le Tampon", "Bois de Nèfles", "Piton St Leu", "St Leu", "St André", "Étang-Salé", "La Plaine St Paul", "La Saline", "Le Guillaume", "Trois Bassins", "La Montagne", "La Saline les Bains", "Plateau Caillou", "Ste Suzanne", "Chaloupe St Leu", "La Rivière St Louis", "Les Avirons", "St Benoît", "La Saline les Hauts", "Ravine des Cabris", "Ste Anne", "Étang St Leu", "Étang-Salé les Hauts"];
+const COM_CNT = {"Bois de Nèfles": 10, "Chaloupe St Leu": 2, "Étang-Salé les Hauts": 1, "Étang St Leu": 1, "Étang-Salé": 6, "La Plaine St Paul": 5, "La Possession": 31, "La Saline": 5, "Le Guillaume": 4, "Le Port": 60, "Le Tampon": 11, "Les Avirons": 2, "La Montagne": 3, "La Rivière St Louis": 2, "La Saline les Bains": 3, "La Saline les Hauts": 1, "Piton St Leu": 9, "Plateau Caillou": 3, "Ravine des Cabris": 1, "St Gilles les Hauts": 21, "St André": 8, "St Denis": 42, "St Leu": 9, "St Louis": 16, "St Paul": 68, "Ste Marie": 14, "Ste Suzanne": 3, "St Benoît": 2, "St Pierre": 16, "Ste Clotilde": 20, "St Gilles les Bains": 15, "Ste Anne": 1, "Trois Bassins": 4};
+
+const SL={none:"Pas contacté",contact:"À contacter",contacte:"Contacté",rdv:"RDV obtenu",accepte:"✅ Accepté",refuse:"❌ Refusé"};
+const SO=["none","contact","contacte","rdv","accepte","refuse"];
+const SP={none:0,contact:1,contacte:2,rdv:3,accepte:4,refuse:4};
+const SC=["s0","s1","s2","s3","s4","s5"];
+const BC={none:"bn",contact:"bc1",contacte:"bc2",rdv:"bc3",accepte:"bc4",refuse:"bc5"};
+const navUrl=e=>`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(e.adresse)}`;
+
+// ── STATE ──
+const S={favs:new Set(),statuts:{},notes:{},filtre:"Tous",commune:"",q:"",tab:"liste",ficheId:null};
+function persist(){try{localStorage.setItem("pfmp6",JSON.stringify({favs:[...S.favs],statuts:S.statuts,notes:S.notes}))}catch(e){}}
+function restore(){try{const d=JSON.parse(localStorage.getItem("pfmp6")||"{}");if(d.favs)S.favs=new Set(d.favs);if(d.statuts)S.statuts=d.statuts;if(d.notes)S.notes=d.notes}catch(e){}}
+const getSt=id=>S.statuts[id]||"none";
+const getN =id=>S.notes[id]||"";
+const isFav=id=>S.favs.has(id);
+function toggleFav(id){S.favs.has(id)?(S.favs.delete(id),toast("Retiré des favoris")):(S.favs.add(id),toast("⭐ Ajouté aux favoris !"));persist();updateSub()}
+function updateSub(){$("sub-line").textContent=`${DATA.length} entreprises · ${S.favs.size} favori${S.favs.size>1?"s":""}`}
+let _t;function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("on");clearTimeout(_t);_t=setTimeout(()=>t.classList.remove("on"),2400)}
+function $(id){return document.getElementById(id)}
+function filtered(){
+  return DATA.filter(e=>{
+    if(S.filtre==="⭐ Favoris"&&!isFav(e.id))return false;
+    if(S.filtre!=="Tous"&&S.filtre!=="⭐ Favoris"&&e.secteur!==S.filtre)return false;
+    if(S.commune&&e.commune!==S.commune)return false;
+    if(S.q){const q=S.q.toLowerCase();
+      if(!e.nom.toLowerCase().includes(q)&&!e.secteur.toLowerCase().includes(q)&&!e.commune.toLowerCase().includes(q))return false}
+    return true;
+  });
+}
+
+// ── TAILLE CARTE : 40% écran ──
+function sizeMap(){
+  const h=Math.round(window.innerHeight*0.40);
+  $("map-wrap").style.height=h+"px";
+  if(MAP)MAP.invalidateSize();
+}
+
+// ── MAP LEAFLET ──
+let MAP,MARKERS={},uDot=null;
+
+function initMap(){
+  MAP=L.map("map",{zoomControl:false,attributionControl:false});
+  MAP.setView([-21.115,55.536],11);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+    maxZoom:19,
+    attribution:"© OpenStreetMap"
+  }).addTo(MAP);
+  L.control.attribution({
+    prefix:'© <a href="https://openstreetmap.org">OSM</a>',
+    position:"bottomright"
+  }).addTo(MAP);
+}
+
+function mkIcon(e){
+  const s=getSt(e.id),fav=isFav(e.id);
+  const col=s==="accepte"?"#22c55e":s==="refuse"?"#ef4444":s==="rdv"?"#a855f7":
+    s==="contacte"?"#eab308":s==="contact"?"#3b82f6":(COLORS[e.secteur]||"#6b7280");
+  const em=EMOJIS[e.secteur]||"🏢";
+  const sz=fav?32:24;
+  const border=fav?"3px solid #fff":"2px solid #fff";
+  const extra=fav?",0 0 0 2px #f07c32":"";
+  const sh=`0 2px 8px rgba(0,0,0,.3)${extra}`;
+  const fs=fav?13:9;
+  const html=`<div style="width:${sz}px;height:${sz}px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:${col};border:${border};box-shadow:${sh};display:flex;align-items:center;justify-content:center"><span style="transform:rotate(45deg);font-size:${fs}px;line-height:1;display:block">${em}</span></div>`;
+  return L.divIcon({html,className:"",iconSize:[sz,sz],iconAnchor:[sz/2,sz],popupAnchor:[0,-sz]});
+}
+
+function renderMap(){
+  Object.values(MARKERS).forEach(m=>MAP.removeLayer(m));
+  MARKERS={};
+  filtered().forEach(e=>{
+    const m=L.marker([e.lat,e.lng],{icon:mkIcon(e)});
+    m.bindPopup(
+      `<div class="pop">
+        <div class="pop-sect">${e.secteur}</div>
+        <div class="pop-nom">${EMOJIS[e.secteur]||"🏢"} ${e.nom}</div>
+        <div class="pop-com">📍 ${e.commune}</div>
+        <div class="pop-acts">
+          <button class="pbtn p" onclick="APP.openFiche(${e.id})">📋 Fiche</button>
+          <a class="pbtn s" href="${navUrl(e)}" target="_blank">🧭 Y aller</a>
+          <button class="pbtn f" onclick="APP.favRefresh(${e.id})">⭐</button>
+        </div>
+      </div>`,
+      {maxWidth:270,closeButton:false}
+    );
+    m.addTo(MAP);
+    MARKERS[e.id]=m;
+  });
+}
+
+function refreshMk(id){
+  const e=DATA.find(x=>x.id==id);
+  if(e&&MARKERS[id])MARKERS[id].setIcon(mkIcon(e));
+}
+
+function zoomTo(e){
+  MAP.setView([e.lat,e.lng],16,{animate:true});
+  setTimeout(()=>MARKERS[e.id]&&MARKERS[e.id].openPopup(),350);
+}
+
+// ── CHIPS ──
+function buildChips(){
+  const bar=$("cbar");bar.innerHTML="";
+  ["Tous","⭐ Favoris",...SECTEURS].forEach(s=>{
+    const c=document.createElement("button");
+    c.className="chip"+(s===S.filtre?" on":"")+(s==="⭐ Favoris"?" fav":"");
+    c.textContent=s;
+    c.onclick=()=>{S.filtre=s;buildChips();renderAll()};
+    bar.appendChild(c);
+  });
+}
+
+// ── TABS ──
+function switchTab(t){
+  S.tab=t;
+  document.querySelectorAll(".stab").forEach(x=>x.classList.toggle("on",x.dataset.t===t));
+  document.querySelectorAll(".sp").forEach(x=>x.classList.toggle("on",x.id==="sp-"+t));
+  $("sh-srch-wrap").style.display=(t==="liste"||t==="favoris")?"":"none";
+  $("sh-hint").style.display=t==="liste"?"":"none";
+  renderTab();
+}
+document.querySelectorAll(".stab").forEach(t=>t.addEventListener("click",()=>switchTab(t.dataset.t)));
+
+// ── RENDER ──
+function renderAll(){renderMap();renderTab()}
+function renderTab(){
+  if(S.tab==="liste")renderListe();
+  else if(S.tab==="favoris")renderFavoris();
+  else if(S.tab==="demarches")renderDemarches();
+}
+
+function buildCard(e){
+  const s=getSt(e.id),fav=isFav(e.id),prog=SP[s];
+  const col=COLORS[e.secteur]||"#6b7280";
+  const el=document.createElement("div");
+  el.className="ec";if(s!=="none")el.dataset.s=s;
+  const bars=[0,1,2,3].map(i=>{
+    let c="pp";
+    if(prog>i)c+=" "+(i===0?"p1":i===1?"p2":i===2?"p3":(s==="refuse"?"p4r":"p4g"));
+    return `<div class="${c}"></div>`;
+  }).join("");
+  el.innerHTML=`
+    <div class="ec-top">
+      <div class="ec-ico" style="background:${col}">${EMOJIS[e.secteur]||"🏢"}</div>
+      <div class="ec-inf">
+        <div class="ec-nom">${e.nom}</div>
+        <div class="ec-meta">${e.secteur} · 📍 ${e.commune}</div>
+      </div>
+      <div class="ec-fav">${fav?"⭐":"🤍"}</div>
+    </div>
+    <div class="ec-tags">
+      <span class="bdg ${BC[s]}">${SL[s]}</span>
+      ${e.responsable?`<span class="bdg" style="background:#f0fdf4;color:#166534">👤 ${e.responsable}</span>`:""}
+    </div>
+    <div class="ec-acts">
+      ${e.tel?`<a class="ea call" href="tel:${e.tel}"><span>📞</span>Appeler</a>`:""}
+      <a class="ea nav" href="${navUrl(e)}" target="_blank"><span>🧭</span>Itinéraire</a>
+      <button class="ea fiche" data-id="${e.id}"><span>📋</span>Fiche</button>
+    </div>
+    <div class="ec-prog">${bars}<span class="pp-lbl">${SL[s]}</span></div>`;
+  el.querySelector(".ec-top").addEventListener("click",()=>zoomTo(e));
+  el.querySelector(".ec-fav").addEventListener("click",ev=>{
+    ev.stopPropagation();toggleFav(e.id);renderAll();refreshMk(e.id);
+  });
+  el.querySelector("[data-id]").addEventListener("click",ev=>{
+    ev.stopPropagation();openFiche(e.id);
+  });
+  return el;
+}
+
+function renderListe(){
+  const p=$("sp-liste");p.innerHTML="";
+  const fl=filtered();
+  if(!fl.length){p.innerHTML=`<div class="mt-empty"><div class="ei">😕</div><p>Aucune entreprise trouvée</p></div>`;return}
+  fl.forEach(e=>p.appendChild(buildCard(e)));
+}
+function renderFavoris(){
+  const p=$("sp-favoris");p.innerHTML="";
+  const fl=DATA.filter(e=>isFav(e.id));
+  if(!fl.length){p.innerHTML=`<div class="mt-empty"><div class="ei">⭐</div><p>Aucun favori.<br>Touche ⭐ sur une fiche.</p></div>`;return}
+  fl.forEach(e=>p.appendChild(buildCard(e)));
+}
+function renderDemarches(){
+  const p=$("sp-demarches");p.innerHTML="";
+  const G={accepte:[],rdv:[],contacte:[],contact:[]},sans=[];
+  DATA.forEach(e=>{const s=getSt(e.id);G[s]?G[s].push(e):sans.push(e)});
+  if(!Object.values(G).some(g=>g.length)){
+    p.innerHTML=`<div class="mt-empty"><div class="ei">📊</div><p>Aucune démarche encore.<br>Ouvre une fiche pour noter ton avancement.</p></div>`;return;
+  }
+  const labels={accepte:"✅ Accepté",rdv:"📅 RDV obtenu",contacte:"📨 Contacté",contact:"🎯 À contacter"};
+  Object.entries(labels).forEach(([k,lbl])=>{
+    if(!G[k].length)return;
+    const t=document.createElement("div");t.className="sec-lbl";
+    t.textContent=`${lbl} (${G[k].length})`;p.appendChild(t);
+    G[k].forEach(e=>p.appendChild(buildDI(e)));
+  });
+  if(sans.length){
+    const t=document.createElement("div");t.className="sec-lbl";
+    t.textContent=`💤 Pas contacté (${sans.length})`;p.appendChild(t);
+    sans.slice(0,6).forEach(e=>p.appendChild(buildDI(e)));
+    if(sans.length>6){
+      const m=document.createElement("div");m.className="mt-empty";m.style.padding="10px 0";
+      m.innerHTML=`<p>+${sans.length-6} autres…</p>`;p.appendChild(m);
+    }
+  }
+}
+function buildDI(e){
+  const s=getSt(e.id),n=getN(e.id),col=COLORS[e.secteur]||"#6b7280";
+  const el=document.createElement("div");el.className="di";
+  el.innerHTML=`
+    <div class="di-hd">
+      <div class="di-ico" style="background:${col}">${EMOJIS[e.secteur]||"🏢"}</div>
+      <div class="di-inf">
+        <div class="di-nom">${e.nom}</div>
+        <div class="di-sub"><span class="bdg ${BC[s]}">${SL[s]}</span>${n?"<span>📝</span>":""}</div>
+      </div>
+      <div class="di-arr">›</div>
+    </div>
+    <div class="di-body">
+      <div class="ss-row">${SO.map((sv,i)=>`<span class="so ${SC[i]} ${s===sv?"on":""}" data-s="${sv}">${SL[sv]}</span>`).join("")}</div>
+      <textarea class="ntxt" placeholder="Tes notes…">${n}</textarea>
+      <button class="sv-btn">Enregistrer</button>
+    </div>`;
+  const hd=el.querySelector(".di-hd"),bd=el.querySelector(".di-body"),arr=el.querySelector(".di-arr");
+  let op=false;
+  hd.addEventListener("click",()=>{op=!op;bd.classList.toggle("op",op);arr.classList.toggle("op",op)});
+  el.querySelectorAll(".so").forEach(o=>o.addEventListener("click",()=>{el.querySelectorAll(".so").forEach(x=>x.classList.remove("on"));o.classList.add("on")}));
+  el.querySelector(".sv-btn").addEventListener("click",()=>{
+    const ns=el.querySelector(".so.on")?.dataset.s||"none",nn=el.querySelector(".ntxt").value;
+    S.statuts[e.id]=ns;S.notes[e.id]=nn;persist();toast("✅ Enregistré !");
+    op=false;bd.classList.remove("op");arr.classList.remove("op");
+    setTimeout(renderAll,100);
+  });
+  return el;
+}
+
+// ── FICHE ──
+function openFiche(id){
+  const e=DATA.find(x=>x.id==id);if(!e)return;
+  S.ficheId=id;const col=COLORS[e.secteur]||"#6b7280";
+  $("f-ico").textContent=EMOJIS[e.secteur]||"🏢";$("f-ico").style.background=col;
+  $("f-nom").textContent=e.nom;$("f-sub").textContent=`${e.secteur} · 📍 ${e.commune}`;
+  if(e.tel){$("f-call").href="tel:"+e.tel;$("f-tel").textContent=e.tel;$("f-call").style.display=""}
+  else $("f-call").style.display="none";
+  $("f-nav").href=navUrl(e);$("f-adr").textContent=e.adresse;
+  $("f-script").innerHTML=`« Bonjour, je m'appelle <strong>[prénom]</strong>, je suis élève en bac pro <strong>[filière]</strong> au lycée Paul Vergès. Je cherche une entreprise pour ma PFMP. Est-ce que vous accueillez des stagiaires ? »${e.responsable?`<br><br>Demande à parler à <strong>${e.responsable}</strong>.`:""}`;
+  updFav(id);
+  const s=getSt(id),ss=$("f-ss");
+  ss.innerHTML=SO.map((sv,i)=>`<span class="so ${SC[i]} ${s===sv?"on":""}" data-s="${sv}">${SL[sv]}</span>`).join("");
+  ss.querySelectorAll(".so").forEach(o=>o.addEventListener("click",()=>{ss.querySelectorAll(".so").forEach(x=>x.classList.remove("on"));o.classList.add("on")}));
+  $("f-notes").value=getN(id);
+  $("fiche-ov").classList.add("on");
+}
+function closeFiche(){$("fiche-ov").classList.remove("on");S.ficheId=null}
+function updFav(id){const b=$("f-fav");if(isFav(id)){b.textContent="⭐ Dans mes favoris";b.classList.add("on")}else{b.textContent="🤍 Ajouter aux favoris";b.classList.remove("on")}}
+$("f-x").addEventListener("click",closeFiche);
+$("fiche-ov").addEventListener("click",e=>{if(e.target===$("fiche-ov"))closeFiche()});
+$("f-fav").addEventListener("click",()=>{if(S.ficheId===null)return;toggleFav(S.ficheId);updFav(S.ficheId);refreshMk(S.ficheId);renderTab()});
+$("f-save").addEventListener("click",()=>{
+  if(S.ficheId===null)return;
+  const ns=document.querySelector("#f-ss .so.on")?.dataset.s||"none",nn=$("f-notes").value;
+  S.statuts[S.ficheId]=ns;S.notes[S.ficheId]=nn;persist();
+  toast("✅ Démarche enregistrée !");closeFiche();renderAll();updateSub();
+});
+
+// ── STATS ──
+$("btn-stats").addEventListener("click",()=>{
+  const bd=$("stats-body");bd.innerHTML="";
+  const cnt={};DATA.forEach(e=>{cnt[e.secteur]=(cnt[e.secteur]||0)+1});
+  const rows=Object.entries(cnt).sort((a,b)=>b[1]-a[1]),mx=rows[0][1];
+  rows.forEach(([s,n])=>{
+    const d=document.createElement("div");d.className="si-item";
+    d.innerHTML=`<div class="si-row"><span class="si-nm">${EMOJIS[s]||"🏢"} ${s}</span><span class="si-ct">${n}</span></div><div class="si-bg"><div class="si-fill" style="width:${Math.round(n/mx*100)}%;background:${COLORS[s]||"#f07c32"}"></div></div>`;
+    bd.appendChild(d);
+  });
+  $("stats-ov").classList.add("on");
+});
+$("stats-x").addEventListener("click",()=>$("stats-ov").classList.remove("on"));
+$("stats-ov").addEventListener("click",e=>{if(e.target===$("stats-ov"))$("stats-ov").classList.remove("on")});
+
+// ── COMMUNES ──
+$("btn-com").addEventListener("click",()=>{
+  const bd=$("com-body");bd.innerHTML="";
+  const all=document.createElement("div");all.className="com-all";
+  all.innerHTML=`<div><div class="com-nm">🌍 Toutes les communes</div><div class="com-ct">${DATA.length} entreprises</div></div><span class="com-arr">›</span>`;
+  all.addEventListener("click",()=>{S.commune="";$("com-ov").classList.remove("on");renderAll();toast("Toutes les communes")});
+  bd.appendChild(all);
+  COMMUNES.forEach(c=>{
+    const d=document.createElement("div");d.className="com-row"+(S.commune===c?" on":"");
+    d.innerHTML=`<div><div class="com-nm">${S.commune===c?"✓ ":""}<strong>${c}</strong></div><div class="com-ct">${COM_CNT[c]||0} entreprise${(COM_CNT[c]||0)>1?"s":""}</div></div><span class="com-arr">›</span>`;
+    d.addEventListener("click",()=>{S.commune=c;$("com-ov").classList.remove("on");renderAll();toast(`📍 ${c}`)});
+    bd.appendChild(d);
+  });
+  $("com-ov").classList.add("on");
+});
+$("com-x").addEventListener("click",()=>$("com-ov").classList.remove("on"));
+$("com-ov").addEventListener("click",e=>{if(e.target===$("com-ov"))$("com-ov").classList.remove("on")});
+
+// ── LOCALISATION ──
+$("btn-locate").addEventListener("click",()=>{
+  if(!navigator.geolocation){toast("Géolocalisation non disponible");return}
+  navigator.geolocation.getCurrentPosition(pos=>{
+    const{latitude:lat,longitude:lng}=pos.coords;
+    if(uDot)MAP.removeLayer(uDot);
+    uDot=L.marker([lat,lng],{icon:L.divIcon({
+      html:`<div style="width:14px;height:14px;border-radius:50%;background:#3b82f6;border:3px solid #fff;box-shadow:0 0 0 5px rgba(59,130,246,.25)"></div>`,
+      className:"",iconSize:[14,14],iconAnchor:[7,7]
+    })}).addTo(MAP);
+    MAP.setView([lat,lng],14,{animate:true});
+    toast("📍 Position trouvée !");
+  },()=>toast("Position non disponible"));
+});
+
+// ── ZOOM ──
+$("btn-zi").addEventListener("click",()=>MAP.zoomIn());
+$("btn-zo").addEventListener("click",()=>MAP.zoomOut());
+
+// ── SEARCH ──
+$("sh-srch").addEventListener("input",e=>{S.q=e.target.value;renderListe();renderMap()});
+
+// ── GLOBAL (popups) ──
+window.APP={
+  openFiche,
+  favRefresh:(id)=>{toggleFav(id);refreshMk(id);renderTab()}
+};
+
+// ── INIT ──
+restore();
+updateSub();
+buildChips();
+sizeMap();
+window.addEventListener("resize",sizeMap);
+initMap();
+renderMap();
+renderListe();
+
+})();
+</script>
+</body>
+</html>
